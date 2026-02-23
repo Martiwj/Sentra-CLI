@@ -1,24 +1,11 @@
-# Sentra CLI (MVP)
+# Sentra CLI
 
-Sentra CLI is a local-first terminal assistant scaffold designed for offline usage and C++ implementation.
+Sentra CLI is a local-first terminal assistant with explicit local model operations, runtime fallbacks, and persistent sessions.
 
-This MVP proves:
-- Interactive REPL chat loop
-- Session persistence to local disk
-- Pluggable runtime architecture
-- Model registry with Hugging Face-backed presets
-- Runtime model switching (`/model use <id>`)
-
-## Build
+## Build and Run
 
 ```bash
-cmake -S . -B build
-cmake --build build
-```
-
-## Run
-
-```bash
+cmake -S . -B build && cmake --build build
 ./build/sentra
 ```
 
@@ -28,82 +15,71 @@ Optional:
 ./build/sentra --config sentra.conf --session session-123
 ```
 
-## Configure Runtime
+## Model Lifecycle Commands
 
-Edit `/Users/mwj/Documents/Sentra-CLI/sentra.conf`.
+- `/model list`
+- `/model current`
+- `/model use <model-id>`
+- `/model download <model-id>`
+- `/model validate`
+- `/model remove <model-id>` (asks for confirmation)
 
-- `runtime_preference=mock`
-  - Always available; useful for architecture and UX validation.
-- `runtime_preference=local-binary`
-  - Uses an external local runtime command (for example `llama-cli`).
-  - Requires `local_command_template` with placeholders.
-
-Example:
-
-```text
-runtime_preference=local-binary
-local_command_template=llama-cli -m {model_path} -n {max_tokens} --no-display-prompt -p {prompt}
-```
-
-## Hugging Face Model Presets
-
-Model presets live in `/Users/mwj/Documents/Sentra-CLI/models.tsv`.
-Each row has:
+Model presets are defined in `models.tsv`:
 
 ```text
 id<TAB>name<TAB>hf_repo<TAB>hf_file<TAB>local_path
 ```
 
-Included preset IDs:
-- `llama31_8b_q4km`
-- `mistral7b_v03_q4km`
-- `phi3_mini_q4km`
+Active model selection is persisted across runs via `state_file` in config.
 
-Download one preset model:
+## Runtime Configuration
 
-```bash
-./scripts/download_model.sh llama31_8b_q4km
-```
+Use `sentra.conf`:
 
-For faster downloads, `hf_transfer` is enabled by default for `huggingface-cli` when available.
-Disable it with:
+- `runtime_preference=mock|local-binary`
+- `local_command_template=llama-cli -m {model_path} -n {max_tokens} --no-display-prompt -p {prompt}`
+- `max_tokens=...`
+- `context_window_tokens=...`
 
-```bash
-SENTRA_ENABLE_HF_TRANSFER=0 ./scripts/download_model.sh mistral7b_v03_q4km
-```
+`local-binary` requires placeholders `{model_path}`, `{prompt}`, and `{max_tokens}` and a resolvable executable on `PATH`. If unavailable, Sentra falls back deterministically to the first available runtime and prints a startup note.
 
-Then set runtime to local-binary and run Sentra.
+## Runtime Troubleshooting Matrix
 
-If you see `401 Unauthorized`:
-- run `huggingface-cli login`
-- confirm you accepted access/license requirements for that repo
-- or choose a different preset model id (for example `mistral7b_v03_q4km`)
+| Symptom | Likely Cause | Action |
+|---|---|---|
+| `runtime 'local-binary' unavailable; using 'mock'` | Missing `local_command_template` placeholder or missing executable | Fix template and ensure `llama-cli` (or equivalent) is installed and on `PATH` |
+| `active model path is missing` | Model file not downloaded or removed | Run `/model download <id>` then `/model validate` |
+| `local-binary runtime failed with exit code ...` | Runtime process error | Inspect printed stderr, verify model path, and run command template manually |
+| Download 401/403 | Hugging Face auth/license not satisfied | Run `huggingface-cli login`, accept model license, retry |
+| `hf_transfer not installed` message | Optional acceleration package missing | Continue with fallback download path or install `hf_transfer` |
 
-## REPL Commands
+## Hardware and Model Size Guidance
 
-- `/help`
+- 3B-4B quantized models: lower memory footprint, fastest startup, good for laptops.
+- 7B-8B quantized models: stronger quality, moderate memory/latency tradeoff.
+- Higher parameter models: require substantially more RAM/VRAM; prefer desktop-class hardware.
+- If latency grows in long chats, reduce `max_tokens` and/or `context_window_tokens`.
+
+## Session Commands and Storage
+
 - `/session`
-- `/model list`
-- `/model current`
-- `/model use <model-id>`
-- `/exit` or `/quit`
+- `/session info`
+- `/session list`
 
-## Session Storage
+Session logs are append-only in `.sentra/sessions/<session-id>.log` using a structured `v1` line format. Metadata is stored in `.sentra/sessions/<session-id>.meta` with created time, active model id, and runtime name.
 
-Sessions are stored in `.sentra/sessions/<session-id>.log`.
-Each line is `role<TAB>content` with escaping for tabs/newlines.
+## Tests and Smoke
+
+```bash
+./build/sentra_tests
+./tests/smoke_repl.sh
+```
 
 ## Project Layout
 
-- `/Users/mwj/Documents/Sentra-CLI/include/sentra/` public interfaces and core types
-- `/Users/mwj/Documents/Sentra-CLI/src/core/` orchestration, model registry, and session store
-- `/Users/mwj/Documents/Sentra-CLI/src/runtime/` runtime adapters
-- `/Users/mwj/Documents/Sentra-CLI/src/cli/` REPL interaction loop
-- `/Users/mwj/Documents/Sentra-CLI/scripts/` helper scripts
-- `/Users/mwj/Documents/Sentra-CLI/docs/` architecture and roadmap notes
-
-## Notes
-
-- This is an MVP scaffold, not production-safe execution orchestration.
-- Model outputs are treated as plain text; no automatic command execution exists.
-- Next steps are listed in `/Users/mwj/Documents/Sentra-CLI/docs/ARCHITECTURE.md`.
+- `include/sentra/`: public interfaces and types
+- `src/core/`: orchestration, registry, state, sessions, context windowing
+- `src/runtime/`: runtime adapters
+- `src/cli/`: REPL loop and command handling
+- `scripts/`: operational helpers (downloads)
+- `docs/`: architecture and operations notes
