@@ -1,0 +1,5 @@
+/Users/mwj/Documents/Sentra-CLI/build-asan/CMakeFiles/sentra.dir
+/Users/mwj/Documents/Sentra-CLI/build-asan/CMakeFiles/sentra_lib.dir
+/Users/mwj/Documents/Sentra-CLI/build-asan/CMakeFiles/sentra_tests.dir
+/Users/mwj/Documents/Sentra-CLI/build-asan/CMakeFiles/edit_cache.dir
+/Users/mwj/Documents/Sentra-CLI/build-asan/CMakeFiles/rebuild_cache.dir

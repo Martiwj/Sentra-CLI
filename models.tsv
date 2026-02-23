@@ -2,3 +2,4 @@
 llama31_8b_q4km	Llama 3.1 8B Instruct Q4_K_M	bartowski/Llama-3.1-8B-Instruct-GGUF	Llama-3.1-8B-Instruct-Q4_K_M.gguf	./models/Llama-3.1-8B-Instruct-Q4_K_M.gguf
 mistral7b_v03_q4km	Mistral 7B Instruct v0.3 Q4_K_M	bartowski/Mistral-7B-Instruct-v0.3-GGUF	Mistral-7B-Instruct-v0.3-Q4_K_M.gguf	./models/Mistral-7B-Instruct-v0.3-Q4_K_M.gguf
 phi3_mini_q4km	Phi-3 mini 4k instruct Q4_K_M	bartowski/Phi-3-mini-4k-instruct-GGUF	Phi-3-mini-4k-instruct-Q4_K_M.gguf	./models/Phi-3-mini-4k-instruct-Q4_K_M.gguf
+qwen25_7b_q4km	qwen25_7b_q4km	Qwen/Qwen2.5-7B-Instruct-GGUF	qwen2.5-7b-instruct-	./models/qwen2.5-7b-instruct-

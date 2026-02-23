@@ -1,0 +1,7 @@
+{
+	"InstallScripts" : 
+	[
+		"/Users/mwj/Documents/Sentra-CLI/build-asan/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

@@ -1,5 +1,6 @@
 #include "sentra/orchestrator.hpp"
 
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <stdexcept>
@@ -100,6 +101,56 @@ bool Orchestrator::validate_active_model(std::string& report) const {
   }
   report = "model valid: " + active.id + " @ " + active.local_path;
   return true;
+}
+
+std::size_t Orchestrator::max_tokens() const { return config_.max_tokens; }
+
+std::size_t Orchestrator::context_window_tokens() const { return config_.context_window_tokens; }
+
+void Orchestrator::set_max_tokens(std::size_t value) { config_.max_tokens = std::max<std::size_t>(1, value); }
+
+void Orchestrator::set_context_window_tokens(std::size_t value) {
+  config_.context_window_tokens = std::max<std::size_t>(64, value);
+}
+
+std::string Orchestrator::profile() const { return config_.profile; }
+
+bool Orchestrator::set_profile(const std::string& profile, std::string& error) {
+  const std::string normalized = [&]() {
+    std::string out = profile;
+    std::transform(out.begin(), out.end(), out.begin(), [](unsigned char c) {
+      if (c >= 'A' && c <= 'Z') {
+        return static_cast<char>(c - 'A' + 'a');
+      }
+      return static_cast<char>(c);
+    });
+    return out;
+  }();
+
+  if (normalized == "fast") {
+    config_.profile = normalized;
+    config_.max_tokens = 128;
+    config_.context_window_tokens = 1024;
+    error.clear();
+    return true;
+  }
+  if (normalized == "balanced") {
+    config_.profile = normalized;
+    config_.max_tokens = 256;
+    config_.context_window_tokens = 2048;
+    error.clear();
+    return true;
+  }
+  if (normalized == "quality") {
+    config_.profile = normalized;
+    config_.max_tokens = 512;
+    config_.context_window_tokens = 4096;
+    error.clear();
+    return true;
+  }
+
+  error = "unknown profile: " + profile + " (use fast|balanced|quality)";
+  return false;
 }
 
 GenerationResult Orchestrator::respond(const std::vector<Message>& history, StreamCallback on_token) {

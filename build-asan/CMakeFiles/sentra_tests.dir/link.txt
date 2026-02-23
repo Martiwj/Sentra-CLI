@@ -1,0 +1,1 @@
+/usr/bin/c++ -fsanitize=address -fno-omit-frame-pointer -Wl,-search_paths_first -Wl,-headerpad_max_install_names -fsanitize=address CMakeFiles/sentra_tests.dir/tests/test_main.cpp.o -o sentra_tests  libsentra_lib.a /opt/homebrew/lib/libllama.dylib /opt/homebrew/lib/libggml.dylib

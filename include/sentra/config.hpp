@@ -14,6 +14,12 @@ struct AppConfig {
   std::string local_command_template{""};
   std::size_t max_tokens{256};
   std::size_t context_window_tokens{2048};
+  int llama_n_threads{0};
+  int llama_n_threads_batch{0};
+  int llama_n_batch{512};
+  bool llama_offload_kqv{false};
+  bool llama_op_offload{false};
+  std::string profile{"balanced"};
 
   static AppConfig load_from_file(const std::string& path);
 };

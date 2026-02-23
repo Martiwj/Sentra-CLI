@@ -30,6 +30,10 @@ struct GenerationResult {
   std::string text;
   bool context_truncated{false};
   std::string warning;
+  double first_token_ms{0.0};
+  double total_ms{0.0};
+  std::size_t generated_tokens{0};
+  double tokens_per_second{0.0};
 };
 
 struct ModelSpec {

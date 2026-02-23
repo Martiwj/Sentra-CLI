@@ -28,6 +28,12 @@ class Orchestrator {
   bool add_model(const ModelSpec& model, std::string& error);
   bool set_active_model(const std::string& model_id, std::string& error);
   bool validate_active_model(std::string& report) const;
+  std::size_t max_tokens() const;
+  std::size_t context_window_tokens() const;
+  void set_max_tokens(std::size_t value);
+  void set_context_window_tokens(std::size_t value);
+  std::string profile() const;
+  bool set_profile(const std::string& profile, std::string& error);
   GenerationResult respond(const std::vector<Message>& history, StreamCallback on_token);
 
  private:

@@ -349,6 +349,23 @@ std::vector<std::string> split_whitespace(const std::string& input) {
   return tokens;
 }
 
+void print_main_menu() {
+  std::cout << "Sentra Menu\n";
+  std::cout << "  1. Show Status\n";
+  std::cout << "  2. List Models\n";
+  std::cout << "  3. Choose Active Model\n";
+  std::cout << "  4. Download Model\n";
+  std::cout << "  5. Validate Active Model\n";
+  std::cout << "  6. Session Info\n";
+  std::cout << "  7. List Sessions\n";
+  std::cout << "  8. List Generated Code Blocks\n";
+  std::cout << "  9. Copy Code Block\n";
+  std::cout << "  10. Run Shell Code Block\n";
+  std::cout << "  11. Help\n";
+  std::cout << "  0. Exit\n";
+  std::cout << "Use /menu run <number> to execute an action.\n\n";
+}
+
 std::optional<std::reference_wrapper<const ModelSpec>> resolve_model_selector(
     const Orchestrator& orchestrator, const std::string& selector) {
   const std::string value = trim(selector);
@@ -373,6 +390,99 @@ std::optional<std::reference_wrapper<const ModelSpec>> resolve_model_selector(
   }
 
   return orchestrator.find_model(value);
+}
+
+bool is_positive_integer(const std::string& text) {
+  const std::string value = trim(text);
+  if (value.empty()) {
+    return false;
+  }
+  for (char c : value) {
+    if (c < '0' || c > '9') {
+      return false;
+    }
+  }
+  return true;
+}
+
+void print_status_line_items(const Orchestrator& orchestrator, const std::string& session_id, bool raw_stream_mode) {
+  std::cout << "session: " << session_id << "\n";
+  std::cout << "runtime: " << orchestrator.active_runtime_name() << "\n";
+  if (const auto model = orchestrator.active_model(); model.has_value()) {
+    std::cout << "model: " << model->get().id << "\n";
+  } else {
+    std::cout << "model: none\n";
+  }
+  std::cout << "profile: " << orchestrator.profile() << "\n";
+  std::cout << "max_tokens: " << orchestrator.max_tokens() << "\n";
+  std::cout << "context_window_tokens: " << orchestrator.context_window_tokens() << "\n";
+  std::cout << "stream_mode: " << (raw_stream_mode ? "raw" : "render") << "\n";
+  if (!orchestrator.runtime_selection_note().empty()) {
+    std::cout << "note: " << orchestrator.runtime_selection_note() << "\n";
+  }
+  std::cout << "\n";
+}
+
+std::string shorten_for_prompt(const std::string& value, std::size_t max_len) {
+  if (value.size() <= max_len) {
+    return value;
+  }
+  if (max_len < 4) {
+    return value.substr(0, max_len);
+  }
+  return value.substr(0, max_len - 3) + "...";
+}
+
+std::string make_user_prompt(const Orchestrator& orchestrator, bool menu_mode) {
+  if (menu_mode) {
+    return "\033[1;38;5;39mmenu>\033[0m ";
+  }
+  const std::string runtime = shorten_for_prompt(orchestrator.active_runtime_name(), 10);
+  std::string model = "none";
+  if (const auto active = orchestrator.active_model(); active.has_value()) {
+    model = shorten_for_prompt(active->get().id, 14);
+  }
+  return "\033[1;38;5;75msentra\033[0m[\033[38;5;245m" + runtime + "|" + model + "\033[0m]> ";
+}
+
+std::string normalize_user_shortcut(const std::string& input) {
+  const std::string raw = trim(input);
+  if (raw.empty()) {
+    return raw;
+  }
+  const std::string lower = to_lower(raw);
+
+  if (lower == "help" || lower == "h" || lower == "?") {
+    return "/help";
+  }
+  if (lower == "menu" || lower == "m") {
+    return "/menu";
+  }
+  if (lower == "status" || lower == "s") {
+    return "/status";
+  }
+  if (lower == "clear" || lower == "cls") {
+    return "/clear";
+  }
+  if (lower == "quit" || lower == "exit" || lower == "q") {
+    return "/exit";
+  }
+  if (lower == "models") {
+    return "/model list";
+  }
+  if (lower == "current model") {
+    return "/model current";
+  }
+  if (lower.rfind("use ", 0) == 0) {
+    return "/model use " + trim(raw.substr(4));
+  }
+  if (lower.rfind("download ", 0) == 0) {
+    return "/model download " + trim(raw.substr(9));
+  }
+  if (lower.rfind("remove ", 0) == 0) {
+    return "/model remove " + trim(raw.substr(7));
+  }
+  return raw;
 }
 
 }  // namespace
@@ -408,19 +518,59 @@ int Repl::run() {
   std::cout << "type /help for commands\n\n";
 
   std::string line;
+  bool menu_shortcut_mode = false;
+  bool raw_stream_mode = (orchestrator_.profile() == "fast");
   while (true) {
-    std::cout << "you> ";
+    std::cout << make_user_prompt(orchestrator_, menu_shortcut_mode);
     if (!std::getline(std::cin, line)) {
       std::cout << "\n";
       break;
+    }
+
+    if (menu_shortcut_mode) {
+      const std::string shortcut = trim(line);
+      if (shortcut == "q" || shortcut == "quit" || shortcut == "exit") {
+        line = "/menu run 0";
+      } else if (is_positive_integer(shortcut)) {
+        line = "/menu run " + shortcut;
+      } else if (!shortcut.empty() && shortcut[0] == '/') {
+        menu_shortcut_mode = false;
+      } else if (shortcut.empty()) {
+        continue;
+      } else {
+        std::cout << "enter a menu number, or use a slash command to leave menu mode\n\n";
+        continue;
+      }
+    }
+
+    if (!menu_shortcut_mode && !line.empty() && line[0] != '/') {
+      line = normalize_user_shortcut(line);
     }
 
     if (line == "/exit" || line == "/quit") {
       break;
     }
 
+    if (line == "/status") {
+      print_status_line_items(orchestrator_, session_id_, raw_stream_mode);
+      continue;
+    }
+
+    if (line == "/clear") {
+      std::cout << "\033[2J\033[H";
+      continue;
+    }
+
     if (line == "/help") {
       std::cout << "/help                 Show commands\n";
+      std::cout << "/status               Show current session/runtime/model\n";
+      std::cout << "/clear                Clear terminal\n";
+      std::cout << "/profile <mode>       Set profile: fast|balanced|quality\n";
+      std::cout << "/set max_tokens <n>   Set max output tokens\n";
+      std::cout << "/set context <n>      Set context window tokens\n";
+      std::cout << "/set stream <mode>    Set stream mode: raw|render\n";
+      std::cout << "/menu                 Show numbered menu\n";
+      std::cout << "/menu run <n>         Run menu action by number\n";
       std::cout << "/exit                 Exit Sentra\n";
       std::cout << "/session              Print session id\n";
       std::cout << "/session info         Print current session metadata\n";
@@ -436,6 +586,277 @@ int Repl::run() {
       std::cout << "/model download <id|num> Download configured model preset\n";
       std::cout << "/model validate       Validate active model path and metadata\n";
       std::cout << "/model remove <id|num> Remove local model file with confirmation\n\n";
+      continue;
+    }
+
+    if (line == "/menu") {
+      print_main_menu();
+      menu_shortcut_mode = true;
+      continue;
+    }
+
+    if (line.rfind("/menu run ", 0) == 0) {
+      const std::string selector = trim(line.substr(std::string("/menu run ").size()));
+      std::size_t action = 0;
+      try {
+        action = static_cast<std::size_t>(std::stoul(selector));
+      } catch (...) {
+        std::cout << "error: invalid menu number: " << selector << "\n\n";
+        continue;
+      }
+
+      if (action == 0) {
+        break;
+      }
+      if (action == 1) {
+        print_status_line_items(orchestrator_, session_id_, raw_stream_mode);
+        continue;
+      }
+      if (action == 2) {
+        const auto active = orchestrator_.active_model();
+        std::size_t idx = 1;
+        for (const auto& model : orchestrator_.models()) {
+          const bool is_active = active.has_value() && model.id == active->get().id;
+          print_model_line(model, is_active, idx);
+          ++idx;
+        }
+        std::cout << "\n";
+        continue;
+      }
+      if (action == 3) {
+        std::cout << "model id or number: ";
+        std::string model_selector;
+        std::getline(std::cin, model_selector);
+        const auto selected = resolve_model_selector(orchestrator_, model_selector);
+        if (!selected.has_value()) {
+          std::cout << "error: unknown model selector: " << model_selector << "\n\n";
+          continue;
+        }
+        std::string error;
+        if (!orchestrator_.set_active_model(selected->get().id, error)) {
+          std::cout << "error: " << error << "\n\n";
+        } else {
+          session_store_.update_metadata(session_id_, selected->get().id, orchestrator_.active_runtime_name());
+          std::cout << "active model: " << selected->get().id << "\n\n";
+        }
+        continue;
+      }
+      if (action == 4) {
+        std::cout << "model id or number to download: ";
+        std::string model_selector;
+        std::getline(std::cin, model_selector);
+        const auto selected = resolve_model_selector(orchestrator_, model_selector);
+        if (!selected.has_value()) {
+          std::cout << "error: unknown model selector: " << model_selector << "\n\n";
+          continue;
+        }
+        const std::string command =
+            "./scripts/download_model.sh " + shell_escape_single_quoted(selected->get().id) + " " +
+            shell_escape_single_quoted(orchestrator_.models_file_path());
+        const int code = std::system(command.c_str());
+        if (code != 0) {
+          std::cout << "download failed with exit code: " << code << "\n\n";
+        } else {
+          std::cout << "download complete for model: " << selected->get().id << "\n\n";
+        }
+        continue;
+      }
+      if (action == 5) {
+        std::string report;
+        if (orchestrator_.validate_active_model(report)) {
+          std::cout << report << "\n\n";
+        } else {
+          std::cout << "validation failed: " << report << "\n\n";
+        }
+        continue;
+      }
+      if (action == 6) {
+        const auto metadata = session_store_.load_metadata(session_id_);
+        if (!metadata.has_value()) {
+          std::cout << "session metadata not found\n\n";
+        } else {
+          std::cout << "session_id: " << metadata->session_id << "\n";
+          std::cout << "created_at: " << format_epoch(metadata->created_at_epoch) << "\n";
+          std::cout << "active_model_id: " << metadata->active_model_id << "\n";
+          std::cout << "runtime_name: " << metadata->runtime_name << "\n\n";
+        }
+        continue;
+      }
+      if (action == 7) {
+        const auto sessions = session_store_.list_sessions();
+        if (sessions.empty()) {
+          std::cout << "no sessions found\n\n";
+        } else {
+          for (const auto& session : sessions) {
+            std::cout << session.session_id << " | created=" << format_epoch(session.created_at_epoch)
+                      << " | model=" << session.active_model_id << " | runtime=" << session.runtime_name << "\n";
+          }
+          std::cout << "\n";
+        }
+        continue;
+      }
+      if (action == 8) {
+        const auto blocks = extract_code_blocks_from_history(history);
+        if (blocks.empty()) {
+          std::cout << "no code block found in latest assistant reply\n\n";
+        } else {
+          for (std::size_t i = 0; i < blocks.size(); ++i) {
+            std::string lang = trim(blocks[i].language);
+            if (lang.empty()) {
+              lang = "text";
+            }
+            std::cout << "[" << (i + 1) << "] lang=" << lang << " bytes=" << blocks[i].content.size() << "\n";
+          }
+          std::cout << "\n";
+        }
+        continue;
+      }
+      if (action == 9) {
+        std::cout << "code block number (default 1): ";
+        std::string code_selector;
+        std::getline(std::cin, code_selector);
+        const auto blocks = extract_code_blocks_from_history(history);
+        if (blocks.empty()) {
+          std::cout << "no code block found in latest assistant reply\n\n";
+          continue;
+        }
+        std::size_t index = 1;
+        if (!trim(code_selector).empty()) {
+          try {
+            index = static_cast<std::size_t>(std::stoul(trim(code_selector)));
+          } catch (...) {
+            std::cout << "error: invalid code block index\n\n";
+            continue;
+          }
+        }
+        if (index == 0 || index > blocks.size()) {
+          std::cout << "error: code block index out of range (1.." << blocks.size() << ")\n\n";
+          continue;
+        }
+        std::string method;
+        if (try_copy_text_to_clipboard(blocks[index - 1].content, method)) {
+          std::cout << "copied code block [" << index << "] to clipboard via " << method << "\n\n";
+        } else {
+          std::cout << "clipboard tool not found (install pbcopy/xclip/xsel)\n\n";
+        }
+        continue;
+      }
+      if (action == 10) {
+        std::cout << "shell code block number (default 1): ";
+        std::string shell_selector;
+        std::getline(std::cin, shell_selector);
+        const auto blocks = extract_shell_blocks_from_history(history);
+        if (blocks.empty()) {
+          std::cout << "no shell code block found in latest assistant reply\n\n";
+          continue;
+        }
+        std::size_t index = 1;
+        if (!trim(shell_selector).empty()) {
+          try {
+            index = static_cast<std::size_t>(std::stoul(trim(shell_selector)));
+          } catch (...) {
+            std::cout << "error: invalid shell block index\n\n";
+            continue;
+          }
+        }
+        if (index == 0 || index > blocks.size()) {
+          std::cout << "error: shell block index out of range (1.." << blocks.size() << ")\n\n";
+          continue;
+        }
+        std::cout << "about to execute shell block [" << index << "]:\n";
+        std::cout << blocks[index - 1].content << "\n";
+        std::cout << "type RUN to confirm: ";
+        std::string confirmation;
+        std::getline(std::cin, confirmation);
+        if (confirmation != "RUN") {
+          std::cout << "execution cancelled\n\n";
+          continue;
+        }
+        const int exit_code = execute_shell_block(blocks[index - 1].content);
+        std::cout << "\ncommand exit code: " << exit_code << "\n\n";
+        continue;
+      }
+      if (action == 11) {
+        std::cout << "/help                 Show commands\n";
+        std::cout << "/status               Show current session/runtime/model\n";
+        std::cout << "/clear                Clear terminal\n";
+        std::cout << "/profile <mode>       Set profile: fast|balanced|quality\n";
+        std::cout << "/set max_tokens <n>   Set max output tokens\n";
+        std::cout << "/set context <n>      Set context window tokens\n";
+        std::cout << "/set stream <mode>    Set stream mode: raw|render\n";
+        std::cout << "/menu                 Show numbered menu\n";
+        std::cout << "/menu run <n>         Run menu action by number\n";
+        std::cout << "/exit                 Exit Sentra\n";
+        std::cout << "/session              Print session id\n";
+        std::cout << "/session info         Print current session metadata\n";
+        std::cout << "/session list         List known sessions\n";
+        std::cout << "/code list            List latest assistant code blocks\n";
+        std::cout << "/code copy [n]        Copy code block n to clipboard (default first)\n";
+        std::cout << "/code shell           Show latest shell code blocks from assistant\n";
+        std::cout << "/code shell run [n]   Execute shell block n (default first) with confirmation\n";
+        std::cout << "/model list           List configured models\n";
+        std::cout << "/model current        Print active model\n";
+        std::cout << "/model use <id|num>   Switch active model by ID or list number\n\n";
+        std::cout << "/model add <id> <hf-repo> <hf-file> [local-path]\n";
+        std::cout << "/model download <id|num> Download configured model preset\n";
+        std::cout << "/model validate       Validate active model path and metadata\n";
+        std::cout << "/model remove <id|num> Remove local model file with confirmation\n\n";
+        continue;
+      }
+      std::cout << "error: unknown menu action: " << action << "\n\n";
+      continue;
+    }
+
+    if (line.rfind("/profile ", 0) == 0) {
+      const std::string mode = trim(line.substr(std::string("/profile ").size()));
+      std::string error;
+      if (!orchestrator_.set_profile(mode, error)) {
+        std::cout << "error: " << error << "\n\n";
+        continue;
+      }
+      raw_stream_mode = (orchestrator_.profile() == "fast");
+      std::cout << "profile set: " << orchestrator_.profile() << "\n";
+      std::cout << "max_tokens: " << orchestrator_.max_tokens() << ", context_window_tokens: "
+                << orchestrator_.context_window_tokens() << ", stream_mode: "
+                << (raw_stream_mode ? "raw" : "render") << "\n\n";
+      continue;
+    }
+
+    if (line.rfind("/set max_tokens ", 0) == 0) {
+      const std::string value = trim(line.substr(std::string("/set max_tokens ").size()));
+      try {
+        const std::size_t n = static_cast<std::size_t>(std::stoull(value));
+        orchestrator_.set_max_tokens(n);
+        std::cout << "max_tokens set to " << orchestrator_.max_tokens() << "\n\n";
+      } catch (...) {
+        std::cout << "error: invalid max_tokens value: " << value << "\n\n";
+      }
+      continue;
+    }
+
+    if (line.rfind("/set context ", 0) == 0) {
+      const std::string value = trim(line.substr(std::string("/set context ").size()));
+      try {
+        const std::size_t n = static_cast<std::size_t>(std::stoull(value));
+        orchestrator_.set_context_window_tokens(n);
+        std::cout << "context_window_tokens set to " << orchestrator_.context_window_tokens() << "\n\n";
+      } catch (...) {
+        std::cout << "error: invalid context token value: " << value << "\n\n";
+      }
+      continue;
+    }
+
+    if (line.rfind("/set stream ", 0) == 0) {
+      const std::string value = to_lower(trim(line.substr(std::string("/set stream ").size())));
+      if (value == "raw") {
+        raw_stream_mode = true;
+        std::cout << "stream mode set to raw\n\n";
+      } else if (value == "render" || value == "pretty") {
+        raw_stream_mode = false;
+        std::cout << "stream mode set to render\n\n";
+      } else {
+        std::cout << "error: unknown stream mode: " << value << " (use raw|render)\n\n";
+      }
       continue;
     }
 
@@ -726,11 +1147,25 @@ int Repl::run() {
 
     std::cout << "sentra> ";
     try {
-      auto result = orchestrator_.respond(history, [](const std::string&) {});
-      std::cout << render_markdown_for_terminal(result.text);
+      std::string streamed;
+      auto result = orchestrator_.respond(history, [&](const std::string& token) {
+        streamed += token;
+        if (raw_stream_mode) {
+          std::cout << token;
+          std::cout.flush();
+        }
+      });
+      if (!raw_stream_mode) {
+        std::cout << render_markdown_for_terminal(result.text);
+      }
       std::cout << "\n";
       if (result.context_truncated && !result.warning.empty()) {
         std::cout << "[warn] " << result.warning << "\n";
+      }
+      if (result.total_ms > 0.0) {
+        std::cout << "[perf] first_token=" << std::fixed << std::setprecision(1) << result.first_token_ms
+                  << "ms total=" << result.total_ms << "ms tokens=" << result.generated_tokens
+                  << " tps=" << result.tokens_per_second << "\n";
       }
       std::cout << "\n";
 

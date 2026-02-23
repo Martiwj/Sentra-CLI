@@ -1,5 +1,6 @@
 #include "sentra/runtime.hpp"
 
+#include <chrono>
 #include <cerrno>
 #include <cstdlib>
 #include <filesystem>
@@ -132,7 +133,7 @@ class LocalBinaryRuntime final : public IModelRuntime {
     return executable_exists_on_path(executable);
   }
 
-  GenerationResult generate(const GenerationRequest& request, StreamCallback on_token) override {
+GenerationResult generate(const GenerationRequest& request, StreamCallback on_token) override {
     if (command_template_.empty()) {
       throw std::runtime_error("local-binary runtime unavailable: empty command template");
     }
@@ -152,6 +153,7 @@ class LocalBinaryRuntime final : public IModelRuntime {
       throw std::runtime_error("local-binary runtime requires a non-empty model_path");
     }
 
+    const auto t_start = std::chrono::steady_clock::now();
     std::string command = command_template_;
     replace_all(command, "{prompt}", shell_escape_single_quoted(render_prompt(request)));
     replace_all(command, "{model_path}", shell_escape_single_quoted(request.model_path));
@@ -180,7 +182,27 @@ class LocalBinaryRuntime final : public IModelRuntime {
       throw std::runtime_error("local-binary runtime failed with exit code " + std::to_string(exit_code) +
                                ": " + output);
     }
-    return {.text = output};
+    const auto t_end = std::chrono::steady_clock::now();
+    const double total_ms =
+        std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(t_end - t_start).count();
+    std::size_t approx_tokens = 0;
+    bool in_word = false;
+    for (char c : output) {
+      if (c == ' ' || c == '\n' || c == '\t' || c == '\r') {
+        in_word = false;
+      } else if (!in_word) {
+        in_word = true;
+        ++approx_tokens;
+      }
+    }
+    const double tps = total_ms > 0.0 ? (static_cast<double>(approx_tokens) * 1000.0 / total_ms) : 0.0;
+    return {.text = output,
+            .context_truncated = false,
+            .warning = "",
+            .first_token_ms = total_ms,
+            .total_ms = total_ms,
+            .generated_tokens = approx_tokens,
+            .tokens_per_second = tps};
   }
 
  private:

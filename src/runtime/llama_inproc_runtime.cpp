@@ -1,5 +1,6 @@
 #include "sentra/runtime.hpp"
 
+#include <chrono>
 #include <mutex>
 #include <sstream>
 #include <stdexcept>
@@ -20,6 +21,18 @@ std::string render_prompt(const GenerationRequest& request) {
   }
   prompt << "assistant: ";
   return prompt.str();
+}
+
+std::string normalize_profile(std::string profile) {
+  for (char& c : profile) {
+    if (c >= 'A' && c <= 'Z') {
+      c = static_cast<char>(c - 'A' + 'a');
+    }
+  }
+  if (profile != "fast" && profile != "quality") {
+    return "balanced";
+  }
+  return profile;
 }
 
 #if defined(SENTRA_HAS_LLAMA_CPP)
@@ -43,6 +56,10 @@ struct ContextDeleter {
 
 class LlamaInprocRuntime final : public IModelRuntime {
  public:
+  explicit LlamaInprocRuntime(LlamaRuntimeOptions options) : options_(std::move(options)) {
+    options_.profile = normalize_profile(options_.profile);
+  }
+
   std::string name() const override { return "llama-inproc"; }
 
   bool is_available() const override { return true; }
@@ -55,17 +72,7 @@ class LlamaInprocRuntime final : public IModelRuntime {
     std::lock_guard<std::mutex> lock(mu_);
     ensure_backend_init();
     ensure_model_loaded(request.model_path);
-
-    llama_context_params ctx_params = llama_context_default_params();
-    ctx_params.n_ctx = 0;
-    ctx_params.n_batch = 512;
-    ctx_params.n_ubatch = 512;
-    ctx_params.offload_kqv = false;
-    ctx_params.op_offload = false;
-    std::unique_ptr<llama_context, ContextDeleter> ctx(llama_init_from_model(model_.get(), ctx_params));
-    if (!ctx) {
-      throw std::runtime_error("llama-inproc failed to create context");
-    }
+    ensure_context();
 
     const llama_vocab* vocab = llama_model_get_vocab(model_.get());
     if (!vocab) {
@@ -78,48 +85,85 @@ class LlamaInprocRuntime final : public IModelRuntime {
       throw std::runtime_error("llama-inproc tokenization produced zero tokens");
     }
 
-    llama_batch prompt_batch = llama_batch_get_one(prompt_tokens.data(), static_cast<int32_t>(prompt_tokens.size()));
-    const int prompt_rc = llama_decode(ctx.get(), prompt_batch);
-    if (prompt_rc != 0) {
-      throw std::runtime_error("llama-inproc prompt decode failed: code " + std::to_string(prompt_rc));
+    const auto t_start = std::chrono::steady_clock::now();
+    const std::size_t prefix = common_prefix(cached_prompt_tokens_, prompt_tokens);
+    if (prefix != cached_prompt_tokens_.size()) {
+      llama_memory_clear(llama_get_memory(ctx_.get()), true);
+      cached_prompt_tokens_.clear();
+    }
+
+    if (prompt_tokens.size() > cached_prompt_tokens_.size()) {
+      std::vector<llama_token> suffix(prompt_tokens.begin() + static_cast<std::ptrdiff_t>(cached_prompt_tokens_.size()),
+                                      prompt_tokens.end());
+      llama_batch prompt_batch = llama_batch_get_one(suffix.data(), static_cast<int32_t>(suffix.size()));
+      const int prompt_rc = llama_decode(ctx_.get(), prompt_batch);
+      if (prompt_rc != 0) {
+        throw std::runtime_error("llama-inproc prompt decode failed: code " + std::to_string(prompt_rc));
+      }
+      cached_prompt_tokens_ = prompt_tokens;
     }
 
     llama_sampler* sampler = llama_sampler_chain_init(llama_sampler_chain_default_params());
     if (!sampler) {
       throw std::runtime_error("llama-inproc failed to initialize sampler chain");
     }
-    llama_sampler_chain_add(sampler, llama_sampler_init_top_k(40));
-    llama_sampler_chain_add(sampler, llama_sampler_init_top_p(0.95f, 1));
-    llama_sampler_chain_add(sampler, llama_sampler_init_temp(0.7f));
+
+    const int top_k = options_.profile == "fast" ? 20 : (options_.profile == "quality" ? 60 : 40);
+    const float top_p = options_.profile == "quality" ? 0.98f : 0.95f;
+    const float temp = options_.profile == "fast" ? 0.6f : (options_.profile == "quality" ? 0.8f : 0.7f);
+    llama_sampler_chain_add(sampler, llama_sampler_init_top_k(top_k));
+    llama_sampler_chain_add(sampler, llama_sampler_init_top_p(top_p, 1));
+    llama_sampler_chain_add(sampler, llama_sampler_init_temp(temp));
     llama_sampler_chain_add(sampler, llama_sampler_init_dist(LLAMA_DEFAULT_SEED));
 
     std::string output;
     output.reserve(request.max_tokens * 4);
+    std::size_t generated_tokens = 0;
+    bool first_token_recorded = false;
+    double first_token_ms = 0.0;
+
     for (std::size_t i = 0; i < request.max_tokens; ++i) {
-      const llama_token token = llama_sampler_sample(sampler, ctx.get(), -1);
+      const llama_token token = llama_sampler_sample(sampler, ctx_.get(), -1);
       if (token == LLAMA_TOKEN_NULL || llama_vocab_is_eog(vocab, token)) {
         break;
       }
-
       llama_sampler_accept(sampler, token);
+      ++generated_tokens;
 
-      std::string piece = token_to_text(vocab, token);
+      const std::string piece = token_to_text(vocab, token);
       if (!piece.empty()) {
+        if (!first_token_recorded) {
+          first_token_recorded = true;
+          const auto now = std::chrono::steady_clock::now();
+          first_token_ms =
+              std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(now - t_start).count();
+        }
         output += piece;
         on_token(piece);
       }
 
       llama_token next = token;
       llama_batch next_batch = llama_batch_get_one(&next, 1);
-      const int rc = llama_decode(ctx.get(), next_batch);
+      const int rc = llama_decode(ctx_.get(), next_batch);
       if (rc != 0) {
         llama_sampler_free(sampler);
         throw std::runtime_error("llama-inproc token decode failed: code " + std::to_string(rc));
       }
+      cached_prompt_tokens_.push_back(token);
     }
 
     llama_sampler_free(sampler);
-    return {.text = output};
+    const auto t_end = std::chrono::steady_clock::now();
+    const double total_ms =
+        std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(t_end - t_start).count();
+    const double tps = total_ms > 0.0 ? (static_cast<double>(generated_tokens) * 1000.0 / total_ms) : 0.0;
+    return {.text = output,
+            .context_truncated = false,
+            .warning = "",
+            .first_token_ms = first_token_ms,
+            .total_ms = total_ms,
+            .generated_tokens = generated_tokens,
+            .tokens_per_second = tps};
   }
 
  private:
@@ -154,6 +198,34 @@ class LlamaInprocRuntime final : public IModelRuntime {
 
     model_ = std::move(next_model);
     loaded_model_path_ = model_path;
+    ctx_.reset();
+    cached_prompt_tokens_.clear();
+  }
+
+  void ensure_context() {
+    if (ctx_) {
+      return;
+    }
+
+    llama_context_params ctx_params = llama_context_default_params();
+    const uint32_t batch = static_cast<uint32_t>(options_.n_batch > 0 ? options_.n_batch : 512);
+    ctx_params.n_ctx = 0;
+    ctx_params.n_batch = batch;
+    ctx_params.n_ubatch = batch;
+    ctx_params.offload_kqv = options_.offload_kqv;
+    ctx_params.op_offload = options_.op_offload;
+
+    ctx_ = std::unique_ptr<llama_context, ContextDeleter>(llama_init_from_model(model_.get(), ctx_params));
+    if (!ctx_) {
+      throw std::runtime_error("llama-inproc failed to create context");
+    }
+
+    if (options_.n_threads > 0 || options_.n_threads_batch > 0) {
+      const int nt = options_.n_threads > 0 ? options_.n_threads : llama_n_threads(ctx_.get());
+      const int ntb =
+          options_.n_threads_batch > 0 ? options_.n_threads_batch : llama_n_threads_batch(ctx_.get());
+      llama_set_n_threads(ctx_.get(), nt, ntb);
+    }
   }
 
   static std::vector<llama_token> tokenize(const llama_vocab* vocab, const std::string& text) {
@@ -185,14 +257,27 @@ class LlamaInprocRuntime final : public IModelRuntime {
     return std::string(buffer.data(), static_cast<std::size_t>(n));
   }
 
+  static std::size_t common_prefix(const std::vector<llama_token>& a, const std::vector<llama_token>& b) {
+    const std::size_t n = std::min(a.size(), b.size());
+    std::size_t i = 0;
+    while (i < n && a[i] == b[i]) {
+      ++i;
+    }
+    return i;
+  }
+
   std::mutex mu_;
+  LlamaRuntimeOptions options_;
   std::unique_ptr<llama_model, ModelDeleter> model_{nullptr};
+  std::unique_ptr<llama_context, ContextDeleter> ctx_{nullptr};
   std::string loaded_model_path_;
+  std::vector<llama_token> cached_prompt_tokens_;
 };
 
 #else
 class LlamaInprocRuntime final : public IModelRuntime {
  public:
+  explicit LlamaInprocRuntime(LlamaRuntimeOptions) {}
   std::string name() const override { return "llama-inproc"; }
   bool is_available() const override { return false; }
   GenerationResult generate(const GenerationRequest&, StreamCallback) override {
@@ -203,8 +288,8 @@ class LlamaInprocRuntime final : public IModelRuntime {
 
 }  // namespace
 
-std::unique_ptr<IModelRuntime> make_llama_inproc_runtime() {
-  return std::make_unique<LlamaInprocRuntime>();
+std::unique_ptr<IModelRuntime> make_llama_inproc_runtime(const LlamaRuntimeOptions& options) {
+  return std::make_unique<LlamaInprocRuntime>(options);
 }
 
 }  // namespace sentra

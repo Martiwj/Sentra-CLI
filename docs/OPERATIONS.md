@@ -31,6 +31,15 @@ Optional smooth REPL workflow:
 ```
 Then use menu numbers directly (`1`, `2`, `3`, ...).
 
+Latency tuning in REPL:
+```text
+/profile fast
+/set max_tokens 128
+/set context 1024
+/set stream raw
+/status
+```
+
 Add custom Hugging Face model (plug-and-play):
 ```text
 /model add <id> <hf-repo> <hf-file> [local-path]
@@ -60,6 +69,10 @@ Add custom Hugging Face model (plug-and-play):
   - Ensure all placeholders exist: `{model_path}`, `{prompt}`, `{max_tokens}`.
 - Non-zero runtime exit:
   - Sentra surfaces stderr/output; run the command template manually to isolate environment/model issues.
+- Slow responses:
+  - Use `/profile fast` and `/set stream raw`.
+  - Reduce `/set max_tokens` and `/set context`.
+  - Tune `llama_n_threads`, `llama_n_batch` in `sentra.conf`.
 
 ## Model File Recovery
 

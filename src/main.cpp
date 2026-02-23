@@ -69,6 +69,18 @@ AppConfig AppConfig::load_from_file(const std::string& path) {
       config.max_tokens = static_cast<std::size_t>(std::stoul(value));
     } else if (key == "context_window_tokens") {
       config.context_window_tokens = static_cast<std::size_t>(std::stoul(value));
+    } else if (key == "llama_n_threads") {
+      config.llama_n_threads = std::stoi(value);
+    } else if (key == "llama_n_threads_batch") {
+      config.llama_n_threads_batch = std::stoi(value);
+    } else if (key == "llama_n_batch") {
+      config.llama_n_batch = std::stoi(value);
+    } else if (key == "llama_offload_kqv") {
+      config.llama_offload_kqv = (value == "1" || value == "true" || value == "yes");
+    } else if (key == "llama_op_offload") {
+      config.llama_op_offload = (value == "1" || value == "true" || value == "yes");
+    } else if (key == "profile") {
+      config.profile = value;
     }
   }
 
@@ -105,7 +117,14 @@ int main(int argc, char** argv) {
     }
 
     std::vector<std::unique_ptr<sentra::IModelRuntime>> runtimes;
-    runtimes.push_back(sentra::make_llama_inproc_runtime());
+    sentra::LlamaRuntimeOptions llama_options;
+    llama_options.n_threads = config.llama_n_threads;
+    llama_options.n_threads_batch = config.llama_n_threads_batch;
+    llama_options.n_batch = config.llama_n_batch;
+    llama_options.offload_kqv = config.llama_offload_kqv;
+    llama_options.op_offload = config.llama_op_offload;
+    llama_options.profile = config.profile;
+    runtimes.push_back(sentra::make_llama_inproc_runtime(llama_options));
     runtimes.push_back(sentra::make_local_binary_runtime(config.local_command_template));
     runtimes.push_back(sentra::make_mock_runtime());
 

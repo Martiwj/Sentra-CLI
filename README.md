@@ -83,10 +83,36 @@ Use `sentra.conf`:
 - `local_command_template=llama-cli -m {model_path} -n {max_tokens} --no-display-prompt -p {prompt}`
 - `max_tokens=...`
 - `context_window_tokens=...`
+- `profile=fast|balanced|quality`
+- `llama_n_threads=...`
+- `llama_n_threads_batch=...`
+- `llama_n_batch=...`
+- `llama_offload_kqv=true|false`
+- `llama_op_offload=true|false`
 
 `llama-inproc` runs GGUF directly through linked `libllama` inside Sentra (no `llama-cli` subprocess).
 
 `local-binary` requires placeholders `{model_path}`, `{prompt}`, and `{max_tokens}` and a resolvable executable on `PATH`. If unavailable, Sentra falls back deterministically to the first available runtime and prints a startup note.
+
+## Response Time Tuning
+
+Runtime commands:
+
+- `/profile fast|balanced|quality`
+- `/set max_tokens <n>`
+- `/set context <n>`
+- `/set stream raw|render`
+- `/status`
+
+Notes:
+
+- `fast` lowers context and output token budgets and defaults to raw streaming.
+- `raw` streaming improves perceived latency (first visible output sooner).
+- Each turn prints a perf line:
+  - `first_token=...ms`
+  - `total=...ms`
+  - `tokens=...`
+  - `tps=...`
 
 ## Runtime Troubleshooting Matrix
 
