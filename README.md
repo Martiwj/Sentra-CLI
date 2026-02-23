@@ -65,7 +65,19 @@ Download one preset model:
 ./scripts/download_model.sh llama31_8b_q4km
 ```
 
+For faster downloads, `hf_transfer` is enabled by default for `huggingface-cli` when available.
+Disable it with:
+
+```bash
+SENTRA_ENABLE_HF_TRANSFER=0 ./scripts/download_model.sh mistral7b_v03_q4km
+```
+
 Then set runtime to local-binary and run Sentra.
+
+If you see `401 Unauthorized`:
+- run `huggingface-cli login`
+- confirm you accepted access/license requirements for that repo
+- or choose a different preset model id (for example `mistral7b_v03_q4km`)
 
 ## REPL Commands
 
