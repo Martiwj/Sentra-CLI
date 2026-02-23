@@ -41,8 +41,8 @@ class Orchestrator {
   ModelRegistry model_registry_;
   AppState app_state_;
   std::vector<std::unique_ptr<IModelRuntime>> runtimes_;
-  std::optional<std::size_t> active_runtime_index_;
   std::string runtime_selection_note_;
+  std::optional<std::size_t> active_runtime_index_;
 
   std::optional<std::size_t> pick_runtime_index(std::string& note) const;
 };
