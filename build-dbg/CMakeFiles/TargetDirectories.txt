@@ -1,5 +1,0 @@
-/home/runner/work/Sentra-CLI/Sentra-CLI/build-dbg/CMakeFiles/sentra.dir
-/home/runner/work/Sentra-CLI/Sentra-CLI/build-dbg/CMakeFiles/sentra_lib.dir
-/home/runner/work/Sentra-CLI/Sentra-CLI/build-dbg/CMakeFiles/sentra_tests.dir
-/home/runner/work/Sentra-CLI/Sentra-CLI/build-dbg/CMakeFiles/edit_cache.dir
-/home/runner/work/Sentra-CLI/Sentra-CLI/build-dbg/CMakeFiles/rebuild_cache.dir

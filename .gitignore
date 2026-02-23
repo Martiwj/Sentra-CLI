@@ -1,4 +1,5 @@
 /build/
+/build-*/
 /.sentra/
 /.idea/
 /.vscode/

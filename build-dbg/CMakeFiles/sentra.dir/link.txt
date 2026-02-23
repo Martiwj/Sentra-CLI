@@ -1,1 +1,0 @@
-/usr/bin/c++ -fsanitize=address -g -g -Wl,--dependency-file=CMakeFiles/sentra.dir/link.d CMakeFiles/sentra.dir/src/main.cpp.o CMakeFiles/sentra.dir/src/cli/repl.cpp.o -o sentra  libsentra_lib.a
