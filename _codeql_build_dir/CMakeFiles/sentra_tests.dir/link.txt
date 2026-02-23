@@ -1,0 +1,1 @@
+/home/runner/work/Sentra-CLI/.codeql-scratch/dbs/cpp/working/autobuild/bin/c++ -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/sentra_tests.dir/link.d CMakeFiles/sentra_tests.dir/tests/test_main.cpp.o -o sentra_tests  libsentra_lib.a
