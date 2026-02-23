@@ -24,11 +24,18 @@ local_command_template=llama-cli -m {model_path} -n {max_tokens} --no-display-pr
 /model validate
 ```
 
+Optional smooth REPL workflow:
+```text
+/status
+/menu
+```
+Then use menu numbers directly (`1`, `2`, `3`, ...).
+
 Add custom Hugging Face model (plug-and-play):
 ```text
 /model add <id> <hf-repo> <hf-file> [local-path]
-/model download <id>
-/model use <id>
+/model download <id|num>
+/model use <id|num>
 /model validate
 ```
 
@@ -62,11 +69,27 @@ Add custom Hugging Face model (plug-and-play):
 ```
 - Re-download active model:
 ```text
-/model download <id>
+/model download <id|num>
 ```
 - Remove corrupted local model:
 ```text
-/model remove <id>
+/model remove <id|num>
+```
+
+## Code Block Operations
+
+- List generated code blocks from latest assistant reply:
+```text
+/code list
+```
+- Copy a generated code block to clipboard:
+```text
+/code copy [n]
+```
+- Review and execute shell code block with explicit confirmation:
+```text
+/code shell
+/code shell run [n]
 ```
 
 ## Session Recovery

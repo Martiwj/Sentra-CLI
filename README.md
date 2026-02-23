@@ -19,11 +19,11 @@ Optional:
 
 - `/model list`
 - `/model current`
-- `/model use <model-id>`
+- `/model use <id|num>`
 - `/model add <id> <hf-repo> <hf-file> [local-path]`
-- `/model download <model-id>`
+- `/model download <id|num>`
 - `/model validate`
-- `/model remove <model-id>` (asks for confirmation)
+- `/model remove <id|num>` (asks for confirmation)
 
 Model presets are defined in `models.tsv`:
 
@@ -41,6 +41,39 @@ Example for adding a new Hugging Face GGUF and running it:
 /model use qwen25_7b_q4km
 /model validate
 ```
+
+## REPL UX (Smooth Mode)
+
+Core commands:
+
+- `/help`
+- `/status`
+- `/clear`
+- `/menu`
+- `/menu run <n>`
+- `/code list`
+- `/code copy [n]`
+- `/code shell`
+- `/code shell run [n]`
+
+Menu mode:
+
+- Run `/menu` to enter menu mode (`menu>` prompt).
+- Type menu numbers directly (`1`, `2`, `3`, ...).
+- Type `q`/`quit`/`exit` to leave via menu action `0`.
+- Any slash command exits menu mode and runs normally.
+
+Quick aliases (no leading slash needed in normal prompt):
+
+- `help`, `h`, `?` -> `/help`
+- `menu`, `m` -> `/menu`
+- `status`, `s` -> `/status`
+- `clear`, `cls` -> `/clear`
+- `models` -> `/model list`
+- `use <id|num>` -> `/model use <id|num>`
+- `download <id|num>` -> `/model download <id|num>`
+- `remove <id|num>` -> `/model remove <id|num>`
+- `q`, `quit`, `exit` -> `/exit`
 
 ## Runtime Configuration
 
