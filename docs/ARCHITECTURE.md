@@ -15,16 +15,21 @@
 2. `core/orchestrator`
 - Selects active runtime by preference and availability.
 - Converts message history into generation requests.
+- Owns active model selection and runtime request metadata (`model_id`, `model_path`).
 
-3. `core/session_store`
+3. `core/model_registry`
+- Loads local model catalog from `models.tsv`.
+- Tracks active model and supports switching by model id.
+
+4. `core/session_store`
 - Persists and restores per-session message history.
 - Uses append-only local logs for simplicity.
 
-4. `runtime/*`
+5. `runtime/*`
 - `mock_runtime`: deterministic baseline for tests/dev.
-- `local_binary_runtime`: adapter for local model CLIs with `{prompt}` template.
+- `local_binary_runtime`: adapter for local model CLIs with `{model_path}`, `{prompt}`, and `{max_tokens}` placeholders.
 
-5. `config`
+6. `config`
 - Key-value config file for runtime selection, prompt defaults, and limits.
 
 ## Data Flow

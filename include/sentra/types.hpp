@@ -21,11 +21,21 @@ struct Message {
 
 struct GenerationRequest {
   std::vector<Message> messages;
+  std::string model_id;
+  std::string model_path;
   std::size_t max_tokens{256};
 };
 
 struct GenerationResult {
   std::string text;
+};
+
+struct ModelSpec {
+  std::string id;
+  std::string name;
+  std::string hf_repo;
+  std::string hf_file;
+  std::string local_path;
 };
 
 }  // namespace sentra

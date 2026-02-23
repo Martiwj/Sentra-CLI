@@ -6,8 +6,8 @@ This MVP proves:
 - Interactive REPL chat loop
 - Session persistence to local disk
 - Pluggable runtime architecture
-- Mock runtime for deterministic offline testing
-- Optional local binary adapter for `llama.cpp`-style CLI invocation
+- Model registry with Hugging Face-backed presets
+- Runtime model switching (`/model use <id>`)
 
 ## Build
 
@@ -28,43 +28,70 @@ Optional:
 ./build/sentra --config sentra.conf --session session-123
 ```
 
-## Runtime Modes
+## Configure Runtime
 
-Configured in `sentra.conf`:
+Edit `/Users/mwj/Documents/Sentra-CLI/sentra.conf`.
 
 - `runtime_preference=mock`
   - Always available; useful for architecture and UX validation.
 - `runtime_preference=local-binary`
-  - Requires `local_command_template` with a `{prompt}` placeholder.
-  - Example with llama.cpp:
+  - Uses an external local runtime command (for example `llama-cli`).
+  - Requires `local_command_template` with placeholders.
+
+Example:
 
 ```text
-local_command_template=llama-cli -m ./models/model.gguf -n 256 --no-display-prompt -p {prompt}
+runtime_preference=local-binary
+local_command_template=llama-cli -m {model_path} -n {max_tokens} --no-display-prompt -p {prompt}
 ```
 
-If preferred runtime is unavailable, Sentra falls back to the first available runtime.
+## Hugging Face Model Presets
+
+Model presets live in `/Users/mwj/Documents/Sentra-CLI/models.tsv`.
+Each row has:
+
+```text
+id<TAB>name<TAB>hf_repo<TAB>hf_file<TAB>local_path
+```
+
+Included preset IDs:
+- `llama31_8b_q4km`
+- `mistral7b_v03_q4km`
+- `phi3_mini_q4km`
+
+Download one preset model:
+
+```bash
+./scripts/download_model.sh llama31_8b_q4km
+```
+
+Then set runtime to local-binary and run Sentra.
+
+## REPL Commands
+
+- `/help`
+- `/session`
+- `/model list`
+- `/model current`
+- `/model use <model-id>`
+- `/exit` or `/quit`
 
 ## Session Storage
 
 Sessions are stored in `.sentra/sessions/<session-id>.log`.
 Each line is `role<TAB>content` with escaping for tabs/newlines.
 
-## Commands
-
-- `/help`
-- `/session`
-- `/exit` or `/quit`
-
 ## Project Layout
 
-- `include/sentra/` public interfaces and core types
-- `src/core/` orchestration and session store
-- `src/runtime/` runtime adapters
-- `src/cli/` REPL interaction loop
-- `docs/` architecture and roadmap notes
+- `/Users/mwj/Documents/Sentra-CLI/include/sentra/` public interfaces and core types
+- `/Users/mwj/Documents/Sentra-CLI/src/core/` orchestration, model registry, and session store
+- `/Users/mwj/Documents/Sentra-CLI/src/runtime/` runtime adapters
+- `/Users/mwj/Documents/Sentra-CLI/src/cli/` REPL interaction loop
+- `/Users/mwj/Documents/Sentra-CLI/scripts/` helper scripts
+- `/Users/mwj/Documents/Sentra-CLI/docs/` architecture and roadmap notes
 
 ## Notes
 
 - This is an MVP scaffold, not production-safe execution orchestration.
 - Model outputs are treated as plain text; no automatic command execution exists.
-- Next steps are listed in `docs/ARCHITECTURE.md`.
+- Next steps are listed in `/Users/mwj/Documents/Sentra-CLI/docs/ARCHITECTURE.md`.

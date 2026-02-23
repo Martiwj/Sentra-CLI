@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "sentra/config.hpp"
+#include "sentra/model_registry.hpp"
 #include "sentra/orchestrator.hpp"
 #include "sentra/repl.hpp"
 #include "sentra/runtime.hpp"
@@ -56,6 +57,10 @@ AppConfig AppConfig::load_from_file(const std::string& path) {
       config.runtime_preference = value;
     } else if (key == "sessions_dir") {
       config.sessions_dir = value;
+    } else if (key == "models_file") {
+      config.models_file = value;
+    } else if (key == "default_model_id") {
+      config.default_model_id = value;
     } else if (key == "system_prompt") {
       config.system_prompt = value;
     } else if (key == "local_command_template") {
@@ -86,6 +91,8 @@ int main(int argc, char** argv) {
 
     sentra::AppConfig config = sentra::AppConfig::load_from_file(config_path);
     sentra::SessionStore session_store(config.sessions_dir);
+    sentra::ModelRegistry model_registry =
+        sentra::ModelRegistry::load_from_tsv(config.models_file, config.default_model_id);
 
     if (session_id.empty()) {
       session_id = session_store.create_session_id();
@@ -95,7 +102,7 @@ int main(int argc, char** argv) {
     runtimes.push_back(sentra::make_local_binary_runtime(config.local_command_template));
     runtimes.push_back(sentra::make_mock_runtime());
 
-    sentra::Orchestrator orchestrator(config, runtimes);
+    sentra::Orchestrator orchestrator(config, std::move(model_registry), runtimes);
     sentra::Repl repl(session_id, session_store, orchestrator, config.system_prompt);
     return repl.run();
   } catch (const std::exception& ex) {

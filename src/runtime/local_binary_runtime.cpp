@@ -33,6 +33,14 @@ std::string render_prompt(const GenerationRequest& request) {
   return prompt.str();
 }
 
+void replace_all(std::string& target, const std::string& needle, const std::string& replacement) {
+  std::size_t pos = 0;
+  while ((pos = target.find(needle, pos)) != std::string::npos) {
+    target.replace(pos, needle.size(), replacement);
+    pos += replacement.size();
+  }
+}
+
 class LocalBinaryRuntime final : public IModelRuntime {
  public:
   explicit LocalBinaryRuntime(std::string command_template)
@@ -48,11 +56,14 @@ class LocalBinaryRuntime final : public IModelRuntime {
     if (!is_available()) {
       throw std::runtime_error("local-binary runtime unavailable: missing {prompt} placeholder");
     }
+    if (request.model_path.empty()) {
+      throw std::runtime_error("local-binary runtime requires a non-empty model_path");
+    }
 
     std::string command = command_template_;
-    const std::string prompt = shell_escape_single_quoted(render_prompt(request));
-    const auto pos = command.find("{prompt}");
-    command.replace(pos, std::string("{prompt}").size(), prompt);
+    replace_all(command, "{prompt}", shell_escape_single_quoted(render_prompt(request)));
+    replace_all(command, "{model_path}", shell_escape_single_quoted(request.model_path));
+    replace_all(command, "{max_tokens}", std::to_string(request.max_tokens));
 
     std::array<char, 256> buffer{};
     std::string output;

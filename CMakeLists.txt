@@ -9,6 +9,7 @@ add_executable(sentra
   src/main.cpp
   src/cli/repl.cpp
   src/core/orchestrator.cpp
+  src/core/model_registry.cpp
   src/core/session_store.cpp
   src/runtime/mock_runtime.cpp
   src/runtime/local_binary_runtime.cpp
