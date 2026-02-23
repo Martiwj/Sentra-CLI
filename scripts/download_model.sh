@@ -50,7 +50,12 @@ fi
 
 if command -v huggingface-cli >/dev/null 2>&1; then
   if [[ "$ENABLE_HF_TRANSFER" == "1" ]]; then
-    export HF_HUB_ENABLE_HF_TRANSFER=1
+    if python3 -c "import hf_transfer" >/dev/null 2>&1; then
+      export HF_HUB_ENABLE_HF_TRANSFER=1
+    else
+      echo "hf_transfer not installed; falling back to standard download path."
+      export HF_HUB_ENABLE_HF_TRANSFER=0
+    fi
   fi
 
   set +e
