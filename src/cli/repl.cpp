@@ -54,6 +54,16 @@ std::string trim(const std::string& value) {
   return value.substr(start, end - start + 1);
 }
 
+std::vector<std::string> split_whitespace(const std::string& input) {
+  std::istringstream in(input);
+  std::vector<std::string> tokens;
+  std::string token;
+  while (in >> token) {
+    tokens.push_back(token);
+  }
+  return tokens;
+}
+
 }  // namespace
 
 Repl::Repl(std::string session_id, SessionStore session_store, Orchestrator orchestrator,
@@ -107,6 +117,7 @@ int Repl::run() {
       std::cout << "/model list           List configured models\n";
       std::cout << "/model current        Print active model\n";
       std::cout << "/model use <model-id> Switch active model\n\n";
+      std::cout << "/model add <id> <hf-repo> <hf-file> [local-path]\n";
       std::cout << "/model download <id>  Download configured model preset\n";
       std::cout << "/model validate       Validate active model path and metadata\n";
       std::cout << "/model remove <id>    Remove local model file with confirmation\n\n";
@@ -199,6 +210,31 @@ int Repl::run() {
       } else {
         std::cout << "download complete for model: " << model_id << "\n\n";
       }
+      continue;
+    }
+
+    if (line.rfind("/model add ", 0) == 0) {
+      const std::string args = trim(line.substr(std::string("/model add ").size()));
+      const std::vector<std::string> parts = split_whitespace(args);
+      if (parts.size() < 3) {
+        std::cout << "usage: /model add <id> <hf-repo> <hf-file> [local-path]\n\n";
+        continue;
+      }
+
+      ModelSpec model;
+      model.id = parts[0];
+      model.name = parts[0];
+      model.hf_repo = parts[1];
+      model.hf_file = parts[2];
+      model.local_path = parts.size() >= 4 ? parts[3] : ("./models/" + parts[2]);
+
+      std::string error;
+      if (!orchestrator_.add_model(model, error)) {
+        std::cout << "error: " << error << "\n\n";
+        continue;
+      }
+      std::cout << "added model: " << model.id << " -> " << model.local_path << "\n";
+      std::cout << "next: /model download " << model.id << "\n\n";
       continue;
     }
 

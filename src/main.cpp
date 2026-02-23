@@ -15,9 +15,6 @@
 #include "sentra/session_store.hpp"
 
 namespace sentra {
-std::shared_ptr<IModelRuntime> make_mock_runtime();
-std::shared_ptr<IModelRuntime> make_local_binary_runtime(const std::string& command_template);
-
 namespace {
 
 std::string trim(const std::string& value) {
@@ -108,6 +105,7 @@ int main(int argc, char** argv) {
     }
 
     std::vector<std::shared_ptr<sentra::IModelRuntime>> runtimes;
+    runtimes.push_back(sentra::make_llama_inproc_runtime());
     runtimes.push_back(sentra::make_local_binary_runtime(config.local_command_template));
     runtimes.push_back(sentra::make_mock_runtime());
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <functional>
+#include <memory>
 #include <string>
 
 #include "sentra/types.hpp"
@@ -16,5 +17,9 @@ class IModelRuntime {
   virtual bool is_available() const = 0;
   virtual GenerationResult generate(const GenerationRequest& request, StreamCallback on_token) = 0;
 };
+
+std::shared_ptr<IModelRuntime> make_mock_runtime();
+std::shared_ptr<IModelRuntime> make_local_binary_runtime(const std::string& command_template);
+std::shared_ptr<IModelRuntime> make_llama_inproc_runtime();
 
 }  // namespace sentra

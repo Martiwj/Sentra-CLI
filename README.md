@@ -20,6 +20,7 @@ Optional:
 - `/model list`
 - `/model current`
 - `/model use <model-id>`
+- `/model add <id> <hf-repo> <hf-file> [local-path]`
 - `/model download <model-id>`
 - `/model validate`
 - `/model remove <model-id>` (asks for confirmation)
@@ -32,14 +33,25 @@ id<TAB>name<TAB>hf_repo<TAB>hf_file<TAB>local_path
 
 Active model selection is persisted across runs via `state_file` in config.
 
+Example for adding a new Hugging Face GGUF and running it:
+
+```text
+/model add qwen25_7b_q4km Qwen/Qwen2.5-7B-Instruct-GGUF qwen2.5-7b-instruct-q4_k_m.gguf
+/model download qwen25_7b_q4km
+/model use qwen25_7b_q4km
+/model validate
+```
+
 ## Runtime Configuration
 
 Use `sentra.conf`:
 
-- `runtime_preference=mock|local-binary`
+- `runtime_preference=llama-inproc|local-binary|mock`
 - `local_command_template=llama-cli -m {model_path} -n {max_tokens} --no-display-prompt -p {prompt}`
 - `max_tokens=...`
 - `context_window_tokens=...`
+
+`llama-inproc` runs GGUF directly through linked `libllama` inside Sentra (no `llama-cli` subprocess).
 
 `local-binary` requires placeholders `{model_path}`, `{prompt}`, and `{max_tokens}` and a resolvable executable on `PATH`. If unavailable, Sentra falls back deterministically to the first available runtime and prints a startup note.
 
@@ -47,7 +59,8 @@ Use `sentra.conf`:
 
 | Symptom | Likely Cause | Action |
 |---|---|---|
-| `runtime 'local-binary' unavailable; using 'mock'` | Missing `local_command_template` placeholder or missing executable | Fix template and ensure `llama-cli` (or equivalent) is installed and on `PATH` |
+| `runtime 'X' unavailable; using 'Y'` | Preferred runtime unavailable on this build/machine | Install required dependencies or choose an available runtime |
+| `llama-inproc failed to create context` | Local backend/device initialization issue | Ensure `libllama` and `libggml` are installed and rebuild; verify model is valid and memory is sufficient |
 | `active model path is missing` | Model file not downloaded or removed | Run `/model download <id>` then `/model validate` |
 | `local-binary runtime failed with exit code ...` | Runtime process error | Inspect printed stderr, verify model path, and run command template manually |
 | Download 401/403 | Hugging Face auth/license not satisfied | Run `huggingface-cli login`, accept model license, retry |

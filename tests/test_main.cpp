@@ -42,6 +42,11 @@ void test_model_registry_parsing_and_switching() {
   std::string error;
   assert_true(registry.set_active_model("a", error), "switch to model a should succeed");
   assert_true(registry.active_model()->id == "a", "active model should be a after switch");
+  assert_true(registry.add_model({"c", "Model C", "repo/c", "file-c.gguf", "./models/c.gguf"}, error),
+              "adding model c should succeed");
+  assert_true(registry.find_model("c") != nullptr, "added model c should be findable");
+  assert_true(!registry.add_model({"c", "Duplicate C", "repo/c2", "file-c2.gguf", "./models/c2.gguf"}, error),
+              "duplicate id should fail");
   assert_true(!registry.set_active_model("missing", error), "unknown model should fail");
   assert_true(error.find("unknown model id") != std::string::npos, "error should mention unknown model");
 

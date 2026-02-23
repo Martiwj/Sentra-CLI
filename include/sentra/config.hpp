@@ -5,7 +5,7 @@
 namespace sentra {
 
 struct AppConfig {
-  std::string runtime_preference{"mock"};
+  std::string runtime_preference{"llama-inproc"};
   std::string sessions_dir{".sentra/sessions"};
   std::string state_file{".sentra/state.conf"};
   std::string models_file{"models.tsv"};

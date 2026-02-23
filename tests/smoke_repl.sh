@@ -12,7 +12,6 @@ printf 'fake model file\n' > "${MODEL_FILE}"
 
 cat > "${TMP_DIR}/models.tsv" <<EOF
 test_model	Test Model	repo/test	test.gguf	${MODEL_FILE}
-alt_model	Alt Model	repo/alt	alt.gguf	${TMP_DIR}/models/alt.gguf
 EOF
 
 cat > "${TMP_DIR}/sentra.conf" <<EOF
@@ -31,6 +30,7 @@ OUTPUT_FILE="${TMP_DIR}/smoke.out"
 {
   printf '/model current\n'
   printf '/model validate\n'
+  printf '/model add alt_model repo/alt alt.gguf %s\n' "${TMP_DIR}/models/alt.gguf"
   printf '/model use alt_model\n'
   printf '/model current\n'
   printf '/session info\n'
@@ -39,6 +39,7 @@ OUTPUT_FILE="${TMP_DIR}/smoke.out"
 } | "${BIN_PATH}" --config "${TMP_DIR}/sentra.conf" > "${OUTPUT_FILE}" 2>&1
 
 grep -q "model valid: test_model" "${OUTPUT_FILE}"
+grep -q "added model: alt_model" "${OUTPUT_FILE}"
 grep -q "active model: alt_model" "${OUTPUT_FILE}"
 grep -q "session_id:" "${OUTPUT_FILE}"
 grep -q "runtime_name: mock" "${OUTPUT_FILE}"

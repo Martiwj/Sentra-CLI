@@ -15,6 +15,7 @@ class ModelRegistry {
   const ModelSpec* active_model() const;
   const ModelSpec* find_model(const std::string& model_id) const;
   bool set_active_model(const std::string& model_id, std::string& error);
+  bool add_model(ModelSpec model, std::string& error);
 
  private:
   std::vector<ModelSpec> models_;

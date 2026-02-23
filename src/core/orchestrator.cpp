@@ -32,6 +32,38 @@ const ModelSpec* Orchestrator::find_model(const std::string& model_id) const {
   return model_registry_.find_model(model_id);
 }
 
+bool Orchestrator::add_model(const ModelSpec& model, std::string& error) {
+  if (model.id.empty() || model.hf_repo.empty() || model.hf_file.empty() || model.local_path.empty()) {
+    error = "model requires non-empty id, hf_repo, hf_file, and local_path";
+    return false;
+  }
+  if (model_registry_.find_model(model.id) != nullptr) {
+    error = "model id already exists: " + model.id;
+    return false;
+  }
+
+  std::ofstream out(config_.models_file, std::ios::app);
+  if (!out.is_open()) {
+    error = "failed to append models file: " + config_.models_file;
+    return false;
+  }
+  const std::string display_name = model.name.empty() ? model.id : model.name;
+  out << model.id << '\t' << display_name << '\t' << model.hf_repo << '\t' << model.hf_file << '\t'
+      << model.local_path << '\n';
+  if (!out.good()) {
+    error = "failed writing model entry to: " + config_.models_file;
+    return false;
+  }
+
+  ModelSpec copy = model;
+  copy.name = display_name;
+  if (!model_registry_.add_model(std::move(copy), error)) {
+    return false;
+  }
+  error.clear();
+  return true;
+}
+
 bool Orchestrator::set_active_model(const std::string& model_id, std::string& error) {
   const bool ok = model_registry_.set_active_model(model_id, error);
   if (ok) {

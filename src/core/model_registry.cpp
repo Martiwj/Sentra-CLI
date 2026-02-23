@@ -109,4 +109,21 @@ bool ModelRegistry::set_active_model(const std::string& model_id, std::string& e
   return false;
 }
 
+bool ModelRegistry::add_model(ModelSpec model, std::string& error) {
+  if (model.id.empty() || model.hf_repo.empty() || model.hf_file.empty() || model.local_path.empty()) {
+    error = "model requires non-empty id, hf_repo, hf_file, and local_path";
+    return false;
+  }
+  if (find_model(model.id) != nullptr) {
+    error = "model id already exists: " + model.id;
+    return false;
+  }
+  if (model.name.empty()) {
+    model.name = model.id;
+  }
+  models_.push_back(std::move(model));
+  error.clear();
+  return true;
+}
+
 }  // namespace sentra

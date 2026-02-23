@@ -6,7 +6,11 @@
 ```bash
 cmake -S . -B build && cmake --build build
 ```
-2. Configure `sentra.conf` for local runtime:
+2. Configure `sentra.conf` for local runtime (recommended):
+```text
+runtime_preference=llama-inproc
+```
+Optional fallback runtime:
 ```text
 runtime_preference=local-binary
 local_command_template=llama-cli -m {model_path} -n {max_tokens} --no-display-prompt -p {prompt}
@@ -17,6 +21,14 @@ local_command_template=llama-cli -m {model_path} -n {max_tokens} --no-display-pr
 ```
 4. Validate in CLI:
 ```text
+/model validate
+```
+
+Add custom Hugging Face model (plug-and-play):
+```text
+/model add <id> <hf-repo> <hf-file> [local-path]
+/model download <id>
+/model use <id>
 /model validate
 ```
 
@@ -32,6 +44,9 @@ local_command_template=llama-cli -m {model_path} -n {max_tokens} --no-display-pr
 
 ## Runtime Recovery
 
+- `llama-inproc` context creation failed:
+  - Ensure `libllama` and `libggml` are installed and linked at build time.
+  - Rebuild Sentra and confirm startup prints `runtime: llama-inproc`.
 - Missing executable:
   - Ensure runtime binary (`llama-cli`) is installed and on `PATH`.
 - Placeholder/template issues:
