@@ -36,15 +36,15 @@ void test_model_registry_parsing_and_switching() {
   out.close();
 
   sentra::ModelRegistry registry = sentra::ModelRegistry::load_from_tsv(path, "b");
-  assert_true(registry.active_model() != nullptr, "active model should exist");
-  assert_true(registry.active_model()->id == "b", "preferred model id should be selected");
+  assert_true(registry.active_model().has_value(), "active model should exist");
+  assert_true(registry.active_model()->get().id == "b", "preferred model id should be selected");
 
   std::string error;
   assert_true(registry.set_active_model("a", error), "switch to model a should succeed");
-  assert_true(registry.active_model()->id == "a", "active model should be a after switch");
+  assert_true(registry.active_model()->get().id == "a", "active model should be a after switch");
   assert_true(registry.add_model({"c", "Model C", "repo/c", "file-c.gguf", "./models/c.gguf"}, error),
               "adding model c should succeed");
-  assert_true(registry.find_model("c") != nullptr, "added model c should be findable");
+  assert_true(registry.find_model("c").has_value(), "added model c should be findable");
   assert_true(!registry.add_model({"c", "Duplicate C", "repo/c2", "file-c2.gguf", "./models/c2.gguf"}, error),
               "duplicate id should fail");
   assert_true(!registry.set_active_model("missing", error), "unknown model should fail");

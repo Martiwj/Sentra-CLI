@@ -36,8 +36,8 @@ class MockRuntime final : public IModelRuntime {
 
 }  // namespace
 
-std::shared_ptr<IModelRuntime> make_mock_runtime() {
-  return std::make_shared<MockRuntime>();
+std::unique_ptr<IModelRuntime> make_mock_runtime() {
+  return std::make_unique<MockRuntime>();
 }
 
 }  // namespace sentra

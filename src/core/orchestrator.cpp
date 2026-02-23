@@ -9,26 +9,32 @@
 namespace sentra {
 
 Orchestrator::Orchestrator(AppConfig config, ModelRegistry model_registry, AppState app_state,
-                           std::vector<std::shared_ptr<IModelRuntime>> runtimes)
+                           std::vector<std::unique_ptr<IModelRuntime>> runtimes)
     : config_(std::move(config)),
       model_registry_(std::move(model_registry)),
       app_state_(std::move(app_state)),
       runtimes_(std::move(runtimes)),
-      active_runtime_(pick_runtime(runtime_selection_note_)) {}
+      active_runtime_index_(pick_runtime_index(runtime_selection_note_)) {}
 
 std::string Orchestrator::active_runtime_name() const {
-  return active_runtime_ ? active_runtime_->name() : "none";
+  if (!active_runtime_index_.has_value() || *active_runtime_index_ >= runtimes_.size()) {
+    return "none";
+  }
+  return runtimes_[*active_runtime_index_]->name();
 }
 
 std::string Orchestrator::runtime_selection_note() const { return runtime_selection_note_; }
 
 std::string Orchestrator::models_file_path() const { return config_.models_file; }
 
-const ModelSpec* Orchestrator::active_model() const { return model_registry_.active_model(); }
+std::optional<std::reference_wrapper<const ModelSpec>> Orchestrator::active_model() const {
+  return model_registry_.active_model();
+}
 
 const std::vector<ModelSpec>& Orchestrator::models() const { return model_registry_.models(); }
 
-const ModelSpec* Orchestrator::find_model(const std::string& model_id) const {
+std::optional<std::reference_wrapper<const ModelSpec>> Orchestrator::find_model(
+    const std::string& model_id) const {
   return model_registry_.find_model(model_id);
 }
 
@@ -37,7 +43,7 @@ bool Orchestrator::add_model(const ModelSpec& model, std::string& error) {
     error = "model requires non-empty id, hf_repo, hf_file, and local_path";
     return false;
   }
-  if (model_registry_.find_model(model.id) != nullptr) {
+  if (model_registry_.find_model(model.id).has_value()) {
     error = "model id already exists: " + model.id;
     return false;
   }
@@ -73,44 +79,46 @@ bool Orchestrator::set_active_model(const std::string& model_id, std::string& er
 }
 
 bool Orchestrator::validate_active_model(std::string& report) const {
-  const ModelSpec* model = model_registry_.active_model();
-  if (!model) {
+  const auto model = model_registry_.active_model();
+  if (!model.has_value()) {
     report = "no active model configured";
     return false;
   }
-  if (model->id.empty() || model->hf_repo.empty() || model->hf_file.empty() || model->local_path.empty()) {
-    report = "active model metadata is incomplete for id: " + model->id;
+  const ModelSpec& active = model->get();
+  if (active.id.empty() || active.hf_repo.empty() || active.hf_file.empty() || active.local_path.empty()) {
+    report = "active model metadata is incomplete for id: " + active.id;
     return false;
   }
-  if (!std::filesystem::exists(model->local_path)) {
-    report = "model file not found at " + model->local_path + " (run /model download " + model->id + ")";
+  if (!std::filesystem::exists(active.local_path)) {
+    report = "model file not found at " + active.local_path + " (run /model download " + active.id + ")";
     return false;
   }
-  std::ifstream in(model->local_path);
+  std::ifstream in(active.local_path);
   if (!in.good()) {
-    report = "model file exists but is not readable: " + model->local_path;
+    report = "model file exists but is not readable: " + active.local_path;
     return false;
   }
-  report = "model valid: " + model->id + " @ " + model->local_path;
+  report = "model valid: " + active.id + " @ " + active.local_path;
   return true;
 }
 
 GenerationResult Orchestrator::respond(const std::vector<Message>& history, StreamCallback on_token) {
-  if (!active_runtime_) {
+  if (!active_runtime_index_.has_value() || *active_runtime_index_ >= runtimes_.size()) {
     throw std::runtime_error("no available runtime");
   }
 
-  const ModelSpec* model = model_registry_.active_model();
-  if (!model) {
+  const auto model = model_registry_.active_model();
+  if (!model.has_value()) {
     throw std::runtime_error("no active model configured");
   }
-  if (!std::filesystem::exists(model->local_path)) {
-    throw std::runtime_error("active model path is missing: " + model->local_path +
-                             " (run /model validate or /model download " + model->id + ")");
+  const ModelSpec& active = model->get();
+  if (!std::filesystem::exists(active.local_path)) {
+    throw std::runtime_error("active model path is missing: " + active.local_path +
+                             " (run /model validate or /model download " + active.id + ")");
   }
-  std::ifstream in(model->local_path);
+  std::ifstream in(active.local_path);
   if (!in.good()) {
-    throw std::runtime_error("active model path is not readable: " + model->local_path);
+    throw std::runtime_error("active model path is not readable: " + active.local_path);
   }
 
   GenerationRequest req;
@@ -118,11 +126,11 @@ GenerationResult Orchestrator::respond(const std::vector<Message>& history, Stre
       config_.context_window_tokens > config_.max_tokens ? config_.context_window_tokens - config_.max_tokens : 0;
   const ContextPruneResult pruned = prune_context_window(history, prompt_budget);
   req.messages = pruned.messages;
-  req.model_id = model->id;
-  req.model_path = model->local_path;
+  req.model_id = active.id;
+  req.model_path = active.local_path;
   req.max_tokens = config_.max_tokens;
 
-  GenerationResult result = active_runtime_->generate(req, std::move(on_token));
+  GenerationResult result = runtimes_[*active_runtime_index_]->generate(req, std::move(on_token));
   if (pruned.truncated) {
     result.context_truncated = true;
     result.warning = "context truncated to fit token budget (kept approx " +
@@ -131,28 +139,28 @@ GenerationResult Orchestrator::respond(const std::vector<Message>& history, Stre
   return result;
 }
 
-std::shared_ptr<IModelRuntime> Orchestrator::pick_runtime(std::string& note) const {
+std::optional<std::size_t> Orchestrator::pick_runtime_index(std::string& note) const {
   if (runtimes_.empty()) {
     note = "no runtimes configured";
-    return nullptr;
+    return std::nullopt;
   }
 
-  for (const auto& runtime : runtimes_) {
-    if (runtime->name() == config_.runtime_preference && runtime->is_available()) {
+  for (std::size_t i = 0; i < runtimes_.size(); ++i) {
+    if (runtimes_[i]->name() == config_.runtime_preference && runtimes_[i]->is_available()) {
       note.clear();
-      return runtime;
+      return i;
     }
   }
 
-  for (const auto& runtime : runtimes_) {
-    if (runtime->is_available()) {
-      note = "runtime '" + config_.runtime_preference + "' unavailable; using '" + runtime->name() + "'";
-      return runtime;
+  for (std::size_t i = 0; i < runtimes_.size(); ++i) {
+    if (runtimes_[i]->is_available()) {
+      note = "runtime '" + config_.runtime_preference + "' unavailable; using '" + runtimes_[i]->name() + "'";
+      return i;
     }
   }
 
   note = "no runtime is available";
-  return nullptr;
+  return std::nullopt;
 }
 
 }  // namespace sentra

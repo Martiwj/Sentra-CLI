@@ -1,13 +1,13 @@
 #include "sentra/runtime.hpp"
 
-#include <array>
 #include <cerrno>
 #include <cstdlib>
-#include <cstdio>
 #include <filesystem>
+#include <fstream>
 #include <memory>
 #include <sstream>
 #include <stdexcept>
+#include <time.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -157,24 +157,25 @@ class LocalBinaryRuntime final : public IModelRuntime {
     replace_all(command, "{model_path}", shell_escape_single_quoted(request.model_path));
     replace_all(command, "{max_tokens}", std::to_string(request.max_tokens));
 
-    std::array<char, 256> buffer{};
     std::string output;
 
-    command += " 2>&1";
+    const std::filesystem::path output_path =
+        std::filesystem::temp_directory_path() /
+        ("sentra-local-binary-" + std::to_string(static_cast<long long>(std::time(nullptr))) + ".log");
+    command += " > " + shell_escape_single_quoted(output_path.string()) + " 2>&1";
+    const int exit_code = command_exit_code(std::system(command.c_str()));
 
-    FILE* pipe = popen(command.c_str(), "r");
-    if (!pipe) {
-      throw std::runtime_error("failed to execute local runtime command");
+    {
+      std::ifstream in(output_path);
+      std::ostringstream collected;
+      collected << in.rdbuf();
+      output = collected.str();
     }
+    std::filesystem::remove(output_path);
 
-    while (fgets(buffer.data(), static_cast<int>(buffer.size()), pipe) != nullptr) {
-      const std::string chunk(buffer.data());
-      output += chunk;
-      on_token(chunk);
+    if (!output.empty()) {
+      on_token(output);
     }
-
-    const int status = pclose(pipe);
-    const int exit_code = command_exit_code(status);
     if (exit_code != 0) {
       throw std::runtime_error("local-binary runtime failed with exit code " + std::to_string(exit_code) +
                                ": " + output);
@@ -188,8 +189,8 @@ class LocalBinaryRuntime final : public IModelRuntime {
 
 }  // namespace
 
-std::shared_ptr<IModelRuntime> make_local_binary_runtime(const std::string& command_template) {
-  return std::make_shared<LocalBinaryRuntime>(command_template);
+std::unique_ptr<IModelRuntime> make_local_binary_runtime(const std::string& command_template) {
+  return std::make_unique<LocalBinaryRuntime>(command_template);
 }
 
 }  // namespace sentra

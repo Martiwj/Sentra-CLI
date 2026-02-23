@@ -1,5 +1,7 @@
 #pragma once
 
+#include <functional>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -12,8 +14,8 @@ class ModelRegistry {
   static ModelRegistry load_from_tsv(const std::string& path, const std::string& preferred_model_id);
 
   const std::vector<ModelSpec>& models() const;
-  const ModelSpec* active_model() const;
-  const ModelSpec* find_model(const std::string& model_id) const;
+  std::optional<std::reference_wrapper<const ModelSpec>> active_model() const;
+  std::optional<std::reference_wrapper<const ModelSpec>> find_model(const std::string& model_id) const;
   bool set_active_model(const std::string& model_id, std::string& error);
   bool add_model(ModelSpec model, std::string& error);
 

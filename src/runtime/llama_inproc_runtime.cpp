@@ -203,8 +203,8 @@ class LlamaInprocRuntime final : public IModelRuntime {
 
 }  // namespace
 
-std::shared_ptr<IModelRuntime> make_llama_inproc_runtime() {
-  return std::make_shared<LlamaInprocRuntime>();
+std::unique_ptr<IModelRuntime> make_llama_inproc_runtime() {
+  return std::make_unique<LlamaInprocRuntime>();
 }
 
 }  // namespace sentra

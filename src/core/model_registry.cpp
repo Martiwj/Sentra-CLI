@@ -1,7 +1,9 @@
 #include "sentra/model_registry.hpp"
 
+#include <functional>
 #include <filesystem>
 #include <fstream>
+#include <optional>
 #include <sstream>
 #include <stdexcept>
 
@@ -80,20 +82,21 @@ ModelRegistry ModelRegistry::load_from_tsv(const std::string& path, const std::s
 
 const std::vector<ModelSpec>& ModelRegistry::models() const { return models_; }
 
-const ModelSpec* ModelRegistry::active_model() const {
+std::optional<std::reference_wrapper<const ModelSpec>> ModelRegistry::active_model() const {
   if (models_.empty() || active_index_ >= models_.size()) {
-    return nullptr;
+    return std::nullopt;
   }
-  return &models_[active_index_];
+  return std::cref(models_[active_index_]);
 }
 
-const ModelSpec* ModelRegistry::find_model(const std::string& model_id) const {
+std::optional<std::reference_wrapper<const ModelSpec>> ModelRegistry::find_model(
+    const std::string& model_id) const {
   for (const auto& model : models_) {
     if (model.id == model_id) {
-      return &model;
+      return std::cref(model);
     }
   }
-  return nullptr;
+  return std::nullopt;
 }
 
 bool ModelRegistry::set_active_model(const std::string& model_id, std::string& error) {
@@ -114,7 +117,7 @@ bool ModelRegistry::add_model(ModelSpec model, std::string& error) {
     error = "model requires non-empty id, hf_repo, hf_file, and local_path";
     return false;
   }
-  if (find_model(model.id) != nullptr) {
+  if (find_model(model.id).has_value()) {
     error = "model id already exists: " + model.id;
     return false;
   }

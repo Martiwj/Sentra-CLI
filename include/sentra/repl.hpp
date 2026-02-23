@@ -9,7 +9,8 @@ namespace sentra {
 
 class Repl {
  public:
-  Repl(std::string session_id, SessionStore session_store, Orchestrator orchestrator, std::string system_prompt);
+  Repl(std::string session_id, SessionStore&& session_store, Orchestrator&& orchestrator,
+       std::string system_prompt);
 
   int run();
 

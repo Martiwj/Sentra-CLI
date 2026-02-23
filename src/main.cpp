@@ -104,13 +104,15 @@ int main(int argc, char** argv) {
       session_id = session_store.create_session_id();
     }
 
-    std::vector<std::shared_ptr<sentra::IModelRuntime>> runtimes;
+    std::vector<std::unique_ptr<sentra::IModelRuntime>> runtimes;
     runtimes.push_back(sentra::make_llama_inproc_runtime());
     runtimes.push_back(sentra::make_local_binary_runtime(config.local_command_template));
     runtimes.push_back(sentra::make_mock_runtime());
 
-    sentra::Orchestrator orchestrator(config, std::move(model_registry), std::move(app_state), runtimes);
-    sentra::Repl repl(session_id, session_store, orchestrator, config.system_prompt);
+    sentra::Repl repl(
+        session_id, std::move(session_store),
+        sentra::Orchestrator(config, std::move(model_registry), std::move(app_state), std::move(runtimes)),
+        config.system_prompt);
     return repl.run();
   } catch (const std::exception& ex) {
     std::cerr << "fatal: " << ex.what() << "\n";
