@@ -87,6 +87,15 @@ const ModelSpec* ModelRegistry::active_model() const {
   return &models_[active_index_];
 }
 
+const ModelSpec* ModelRegistry::find_model(const std::string& model_id) const {
+  for (const auto& model : models_) {
+    if (model.id == model_id) {
+      return &model;
+    }
+  }
+  return nullptr;
+}
+
 bool ModelRegistry::set_active_model(const std::string& model_id, std::string& error) {
   for (std::size_t i = 0; i < models_.size(); ++i) {
     if (models_[i].id == model_id) {

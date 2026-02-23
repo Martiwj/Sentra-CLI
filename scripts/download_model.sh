@@ -59,7 +59,7 @@ if command -v huggingface-cli >/dev/null 2>&1; then
   fi
 
   set +e
-  OUT=$(huggingface-cli download "$HF_REPO" "$HF_FILE" --local-dir "$(dirname "$LOCAL_PATH")" 2>&1)
+  OUT=$(huggingface-cli download "$HF_REPO" "$HF_FILE" --local-dir "$(dirname "$LOCAL_PATH")" --resume-download 2>&1)
   CODE=$?
   set -e
   if [[ $CODE -ne 0 ]]; then
@@ -78,7 +78,7 @@ else
   fi
 
   set +e
-  OUT=$(curl -fL "${CURL_HEADERS[@]}" "$URL" -o "$LOCAL_PATH" 2>&1)
+  OUT=$(curl -fL --retry 3 --retry-delay 2 -C - "${CURL_HEADERS[@]}" "$URL" -o "$LOCAL_PATH" 2>&1)
   CODE=$?
   set -e
   if [[ $CODE -ne 0 ]]; then

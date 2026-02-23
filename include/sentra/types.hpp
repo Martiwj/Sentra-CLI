@@ -28,6 +28,8 @@ struct GenerationRequest {
 
 struct GenerationResult {
   std::string text;
+  bool context_truncated{false};
+  std::string warning;
 };
 
 struct ModelSpec {
@@ -36,6 +38,13 @@ struct ModelSpec {
   std::string hf_repo;
   std::string hf_file;
   std::string local_path;
+};
+
+struct SessionMetadata {
+  std::string session_id;
+  long long created_at_epoch{0};
+  std::string active_model_id;
+  std::string runtime_name;
 };
 
 }  // namespace sentra

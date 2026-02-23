@@ -1,10 +1,15 @@
 #include "sentra/runtime.hpp"
 
 #include <array>
+#include <cerrno>
+#include <cstdlib>
 #include <cstdio>
+#include <filesystem>
 #include <memory>
 #include <sstream>
 #include <stdexcept>
+#include <sys/wait.h>
+#include <unistd.h>
 
 namespace sentra {
 namespace {
@@ -41,6 +46,70 @@ void replace_all(std::string& target, const std::string& needle, const std::stri
   }
 }
 
+bool has_token(const std::string& text, const std::string& token) {
+  return text.find(token) != std::string::npos;
+}
+
+bool has_balanced_braces(const std::string& text) {
+  int depth = 0;
+  for (char c : text) {
+    if (c == '{') {
+      ++depth;
+    } else if (c == '}') {
+      --depth;
+      if (depth < 0) {
+        return false;
+      }
+    }
+  }
+  return depth == 0;
+}
+
+std::string first_command_token(const std::string& command_template) {
+  const auto first_non_space = command_template.find_first_not_of(" \t");
+  if (first_non_space == std::string::npos) {
+    return "";
+  }
+  const auto end = command_template.find_first_of(" \t", first_non_space);
+  return command_template.substr(first_non_space, end - first_non_space);
+}
+
+bool executable_exists_on_path(const std::string& executable) {
+  if (executable.empty()) {
+    return false;
+  }
+  if (executable.find('/') != std::string::npos) {
+    return access(executable.c_str(), X_OK) == 0;
+  }
+
+  const char* path_env = std::getenv("PATH");
+  if (!path_env) {
+    return false;
+  }
+  std::istringstream paths(path_env);
+  std::string path;
+  while (std::getline(paths, path, ':')) {
+    const std::filesystem::path candidate = std::filesystem::path(path) / executable;
+    if (access(candidate.c_str(), X_OK) == 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+int command_exit_code(int status) {
+  if (status == -1) {
+    return errno != 0 ? errno : 1;
+  }
+  if (WIFEXITED(status)) {
+    return WEXITSTATUS(status);
+  }
+  if (WIFSIGNALED(status)) {
+    return 128 + WTERMSIG(status);
+  }
+  return status;
+}
+
 class LocalBinaryRuntime final : public IModelRuntime {
  public:
   explicit LocalBinaryRuntime(std::string command_template)
@@ -49,12 +118,35 @@ class LocalBinaryRuntime final : public IModelRuntime {
   std::string name() const override { return "local-binary"; }
 
   bool is_available() const override {
-    return command_template_.find("{prompt}") != std::string::npos;
+    if (command_template_.empty()) {
+      return false;
+    }
+    if (!has_token(command_template_, "{prompt}") || !has_token(command_template_, "{model_path}") ||
+        !has_token(command_template_, "{max_tokens}")) {
+      return false;
+    }
+    if (!has_balanced_braces(command_template_)) {
+      return false;
+    }
+    const std::string executable = first_command_token(command_template_);
+    return executable_exists_on_path(executable);
   }
 
   GenerationResult generate(const GenerationRequest& request, StreamCallback on_token) override {
-    if (!is_available()) {
-      throw std::runtime_error("local-binary runtime unavailable: missing {prompt} placeholder");
+    if (command_template_.empty()) {
+      throw std::runtime_error("local-binary runtime unavailable: empty command template");
+    }
+    if (!has_token(command_template_, "{prompt}") || !has_token(command_template_, "{model_path}") ||
+        !has_token(command_template_, "{max_tokens}")) {
+      throw std::runtime_error(
+          "local-binary runtime unavailable: template requires {prompt}, {model_path}, and {max_tokens}");
+    }
+    if (!has_balanced_braces(command_template_)) {
+      throw std::runtime_error("local-binary runtime unavailable: malformed template placeholders");
+    }
+    const std::string executable = first_command_token(command_template_);
+    if (!executable_exists_on_path(executable)) {
+      throw std::runtime_error("local-binary runtime unavailable: executable not found: " + executable);
     }
     if (request.model_path.empty()) {
       throw std::runtime_error("local-binary runtime requires a non-empty model_path");
@@ -68,6 +160,8 @@ class LocalBinaryRuntime final : public IModelRuntime {
     std::array<char, 256> buffer{};
     std::string output;
 
+    command += " 2>&1";
+
     FILE* pipe = popen(command.c_str(), "r");
     if (!pipe) {
       throw std::runtime_error("failed to execute local runtime command");
@@ -79,7 +173,12 @@ class LocalBinaryRuntime final : public IModelRuntime {
       on_token(chunk);
     }
 
-    pclose(pipe);
+    const int status = pclose(pipe);
+    const int exit_code = command_exit_code(status);
+    if (exit_code != 0) {
+      throw std::runtime_error("local-binary runtime failed with exit code " + std::to_string(exit_code) +
+                               ": " + output);
+    }
     return {.text = output};
   }
 
