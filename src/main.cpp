@@ -52,35 +52,35 @@ AppConfig AppConfig::load_from_file(const std::string& path) {
     const std::string value = trim(line.substr(eq + 1));
 
     if (key == "runtime_preference") {
-      config.runtime_preference = value;
+      config.m_runtimePreference = value;
     } else if (key == "sessions_dir") {
-      config.sessions_dir = value;
+      config.m_sessionsDir = value;
     } else if (key == "state_file") {
-      config.state_file = value;
+      config.m_stateFile = value;
     } else if (key == "models_file") {
-      config.models_file = value;
+      config.m_modelsFile = value;
     } else if (key == "default_model_id") {
-      config.default_model_id = value;
+      config.m_defaultModelId = value;
     } else if (key == "system_prompt") {
-      config.system_prompt = value;
+      config.m_systemPrompt = value;
     } else if (key == "local_command_template") {
-      config.local_command_template = value;
+      config.m_localCommandTemplate = value;
     } else if (key == "max_tokens") {
-      config.max_tokens = static_cast<std::size_t>(std::stoul(value));
+      config.m_maxTokens = static_cast<std::size_t>(std::stoul(value));
     } else if (key == "context_window_tokens") {
-      config.context_window_tokens = static_cast<std::size_t>(std::stoul(value));
+      config.m_contextWindowTokens = static_cast<std::size_t>(std::stoul(value));
     } else if (key == "llama_n_threads") {
-      config.llama_n_threads = std::stoi(value);
+      config.m_llamaNThreads = std::stoi(value);
     } else if (key == "llama_n_threads_batch") {
-      config.llama_n_threads_batch = std::stoi(value);
+      config.m_llamaNThreadsBatch = std::stoi(value);
     } else if (key == "llama_n_batch") {
-      config.llama_n_batch = std::stoi(value);
+      config.m_llamaNBatch = std::stoi(value);
     } else if (key == "llama_offload_kqv") {
-      config.llama_offload_kqv = (value == "1" || value == "true" || value == "yes");
+      config.m_llamaOffloadKqv = (value == "1" || value == "true" || value == "yes");
     } else if (key == "llama_op_offload") {
-      config.llama_op_offload = (value == "1" || value == "true" || value == "yes");
+      config.m_llamaOpOffload = (value == "1" || value == "true" || value == "yes");
     } else if (key == "profile") {
-      config.profile = value;
+      config.m_profile = value;
     }
   }
 
@@ -91,47 +91,47 @@ AppConfig AppConfig::load_from_file(const std::string& path) {
 
 int main(int argc, char** argv) {
   try {
-    std::string config_path = "sentra.conf";
-    std::string session_id;
+    std::string configPath = "sentra.conf";
+    std::string sessionId;
 
     for (int i = 1; i < argc; ++i) {
       const std::string arg = argv[i];
       if (arg == "--config" && i + 1 < argc) {
-        config_path = argv[++i];
+        configPath = argv[++i];
       } else if (arg == "--session" && i + 1 < argc) {
-        session_id = argv[++i];
+        sessionId = argv[++i];
       }
     }
 
-    sentra::AppConfig config = sentra::AppConfig::load_from_file(config_path);
-    sentra::SessionStore session_store(config.sessions_dir);
-    sentra::AppState app_state(config.state_file);
-    const std::string persisted_model_id = app_state.load_active_model_id();
-    const std::string preferred_model_id =
-        persisted_model_id.empty() ? config.default_model_id : persisted_model_id;
-    sentra::ModelRegistry model_registry =
-        sentra::ModelRegistry::load_from_tsv(config.models_file, preferred_model_id);
+    sentra::AppConfig config = sentra::AppConfig::load_from_file(configPath);
+    sentra::SessionStore sessionStore(config.m_sessionsDir);
+    sentra::AppState appState(config.m_stateFile);
+    const std::string persistedModelId = appState.load_active_model_id();
+    const std::string preferredModelId =
+        persistedModelId.empty() ? config.m_defaultModelId : persistedModelId;
+    sentra::ModelRegistry modelRegistry =
+        sentra::ModelRegistry::load_from_tsv(config.m_modelsFile, preferredModelId);
 
-    if (session_id.empty()) {
-      session_id = session_store.create_session_id();
+    if (sessionId.empty()) {
+      sessionId = sessionStore.create_session_id();
     }
 
     std::vector<std::unique_ptr<sentra::IModelRuntime>> runtimes;
-    sentra::LlamaRuntimeOptions llama_options;
-    llama_options.n_threads = config.llama_n_threads;
-    llama_options.n_threads_batch = config.llama_n_threads_batch;
-    llama_options.n_batch = config.llama_n_batch;
-    llama_options.offload_kqv = config.llama_offload_kqv;
-    llama_options.op_offload = config.llama_op_offload;
-    llama_options.profile = config.profile;
-    runtimes.push_back(sentra::make_llama_inproc_runtime(llama_options));
-    runtimes.push_back(sentra::make_local_binary_runtime(config.local_command_template));
+    sentra::LlamaRuntimeOptions llamaOptions;
+    llamaOptions.m_nThreads = config.m_llamaNThreads;
+    llamaOptions.m_nThreadsBatch = config.m_llamaNThreadsBatch;
+    llamaOptions.m_nBatch = config.m_llamaNBatch;
+    llamaOptions.m_offloadKqv = config.m_llamaOffloadKqv;
+    llamaOptions.m_opOffload = config.m_llamaOpOffload;
+    llamaOptions.m_profile = config.m_profile;
+    runtimes.push_back(sentra::make_llama_inproc_runtime(llamaOptions));
+    runtimes.push_back(sentra::make_local_binary_runtime(config.m_localCommandTemplate));
     runtimes.push_back(sentra::make_mock_runtime());
 
     sentra::Repl repl(
-        session_id, std::move(session_store),
-        sentra::Orchestrator(config, std::move(model_registry), std::move(app_state), std::move(runtimes)),
-        config.system_prompt);
+        sessionId, std::move(sessionStore),
+        sentra::Orchestrator(config, std::move(modelRegistry), std::move(appState), std::move(runtimes)),
+        config.m_systemPrompt);
     return repl.run();
   } catch (const std::exception& ex) {
     std::cerr << "fatal: " << ex.what() << "\n";

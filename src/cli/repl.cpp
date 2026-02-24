@@ -18,15 +18,15 @@ namespace sentra {
 namespace {
 
 void print_model_line(const ModelSpec& model, bool active) {
-  const bool ready = std::filesystem::exists(model.local_path);
-  std::cout << (active ? "* " : "  ") << model.id << " | " << model.name
-            << " | ready=" << (ready ? "yes" : "no") << " | path=" << model.local_path << "\n";
+  const bool ready = std::filesystem::exists(model.m_localPath);
+  std::cout << (active ? "* " : "  ") << model.m_id << " | " << model.m_name
+            << " | ready=" << (ready ? "yes" : "no") << " | path=" << model.m_localPath << "\n";
 }
 
-void print_model_line(const ModelSpec& model, bool active, std::size_t index_1based) {
-  const bool ready = std::filesystem::exists(model.local_path);
-  std::cout << (active ? "* " : "  ") << "[" << index_1based << "] " << model.id << " | " << model.name
-            << " | ready=" << (ready ? "yes" : "no") << " | path=" << model.local_path << "\n";
+void print_model_line(const ModelSpec& model, bool active, std::size_t index1Based) {
+  const bool ready = std::filesystem::exists(model.m_localPath);
+  std::cout << (active ? "* " : "  ") << "[" << index1Based << "] " << model.m_id << " | " << model.m_name
+            << " | ready=" << (ready ? "yes" : "no") << " | path=" << model.m_localPath << "\n";
 }
 
 std::string shell_escape_single_quoted(const std::string& value) {
@@ -66,8 +66,8 @@ std::string trim(const std::string& value) {
 }
 
 struct CodeBlock {
-  std::string language;
-  std::string content;
+  std::string m_language;
+  std::string m_content;
 };
 
 std::string to_lower(std::string value) {
@@ -88,22 +88,22 @@ std::vector<CodeBlock> extract_fenced_code_blocks(const std::string& text) {
   std::vector<CodeBlock> out;
   std::size_t pos = 0;
   while (true) {
-    const std::size_t fence_start = text.find("```", pos);
-    if (fence_start == std::string::npos) {
+    const std::size_t fenceStart = text.find("```", pos);
+    if (fenceStart == std::string::npos) {
       break;
     }
-    const std::size_t lang_end = text.find('\n', fence_start + 3);
-    if (lang_end == std::string::npos) {
+    const std::size_t langEnd = text.find('\n', fenceStart + 3);
+    if (langEnd == std::string::npos) {
       break;
     }
-    const std::string language = text.substr(fence_start + 3, lang_end - (fence_start + 3));
-    const std::size_t fence_end = text.find("```", lang_end + 1);
-    if (fence_end == std::string::npos) {
+    const std::string language = text.substr(fenceStart + 3, langEnd - (fenceStart + 3));
+    const std::size_t fenceEnd = text.find("```", langEnd + 1);
+    if (fenceEnd == std::string::npos) {
       break;
     }
-    const std::string content = text.substr(lang_end + 1, fence_end - (lang_end + 1));
+    const std::string content = text.substr(langEnd + 1, fenceEnd - (langEnd + 1));
     out.push_back({trim(language), content});
-    pos = fence_end + 3;
+    pos = fenceEnd + 3;
   }
   return out;
 }
@@ -118,43 +118,43 @@ std::string colorize_generic_line(const std::string& line) {
   std::string out;
   out.reserve(line.size() + 16);
 
-  std::size_t comment_pos = std::string::npos;
-  bool in_string = false;
+  std::size_t commentPos = std::string::npos;
+  bool inString = false;
   char quote = '\0';
   for (std::size_t i = 0; i + 1 < line.size(); ++i) {
-    if (in_string) {
+    if (inString) {
       if (line[i] == '\\') {
         ++i;
       } else if (line[i] == quote) {
-        in_string = false;
+        inString = false;
       }
       continue;
     }
     if (line[i] == '"' || line[i] == '\'') {
-      in_string = true;
+      inString = true;
       quote = line[i];
       continue;
     }
     if (line[i] == '/' && line[i + 1] == '/') {
-      comment_pos = i;
+      commentPos = i;
       break;
     }
     if (line[i] == '-' && line[i + 1] == '-') {
-      comment_pos = i;
+      commentPos = i;
       break;
     }
   }
-  if (comment_pos == std::string::npos) {
+  if (commentPos == std::string::npos) {
     for (std::size_t i = 0; i < line.size(); ++i) {
       if (line[i] == '#') {
-        comment_pos = i;
+        commentPos = i;
         break;
       }
     }
   }
 
-  const std::string code = comment_pos == std::string::npos ? line : line.substr(0, comment_pos);
-  const std::string comment = comment_pos == std::string::npos ? "" : line.substr(comment_pos);
+  const std::string code = commentPos == std::string::npos ? line : line.substr(0, commentPos);
+  const std::string comment = commentPos == std::string::npos ? "" : line.substr(commentPos);
 
   out += base;
   for (std::size_t i = 0; i < code.size();) {
@@ -212,31 +212,31 @@ std::string render_markdown_for_terminal(const std::string& text) {
   std::ostringstream out;
   std::istringstream in(text);
   std::string line;
-  bool in_code = false;
-  std::string code_lang;
-  std::size_t code_line_number = 0;
+  bool inCode = false;
+  std::string codeLang;
+  std::size_t codeLineNumber = 0;
 
   while (std::getline(in, line)) {
     if (line.rfind("```", 0) == 0) {
-      if (!in_code) {
-        in_code = true;
-        code_lang = to_lower(trim(line.substr(3)));
-        if (code_lang.empty()) {
-          code_lang = "text";
+      if (!inCode) {
+        inCode = true;
+        codeLang = to_lower(trim(line.substr(3)));
+        if (codeLang.empty()) {
+          codeLang = "text";
         }
-        code_line_number = 0;
-        out << "\033[48;5;236;38;5;255m " << code_lang << " code \033[0m\n";
+        codeLineNumber = 0;
+        out << "\033[48;5;236;38;5;255m " << codeLang << " code \033[0m\n";
       } else {
-        in_code = false;
-        code_lang.clear();
+        inCode = false;
+        codeLang.clear();
         out << "\n";
       }
       continue;
     }
 
-    if (in_code) {
-      ++code_line_number;
-      out << "\033[38;5;240m" << std::setw(4) << code_line_number << " |\033[0m ";
+    if (inCode) {
+      ++codeLineNumber;
+      out << "\033[38;5;240m" << std::setw(4) << codeLineNumber << " |\033[0m ";
       out << colorize_generic_line(line);
       out << "\n";
     } else {
@@ -250,7 +250,7 @@ std::string render_markdown_for_terminal(const std::string& text) {
 std::optional<std::reference_wrapper<const Message>> last_assistant_message(
     const std::vector<Message>& history) {
   for (auto it = history.rbegin(); it != history.rend(); ++it) {
-    if (it->role == Role::Assistant) {
+    if (it->m_role == Role::Assistant) {
       return std::cref(*it);
     }
   }
@@ -262,80 +262,80 @@ std::vector<CodeBlock> extract_code_blocks_from_history(const std::vector<Messag
   if (!assistant.has_value()) {
     return {};
   }
-  return extract_fenced_code_blocks(assistant->get().content);
+  return extract_fenced_code_blocks(assistant->get().m_content);
 }
 
 std::vector<CodeBlock> extract_shell_blocks_from_history(const std::vector<Message>& history) {
-  std::vector<CodeBlock> shell_blocks;
+  std::vector<CodeBlock> shellBlocks;
   const auto blocks = extract_code_blocks_from_history(history);
   for (const auto& block : blocks) {
-    if (is_shell_language(block.language)) {
-      shell_blocks.push_back(block);
+    if (is_shell_language(block.m_language)) {
+      shellBlocks.push_back(block);
     }
   }
-  return shell_blocks;
+  return shellBlocks;
 }
 
-int execute_shell_block(const std::string& script_content) {
-  const std::filesystem::path temp_path =
+int execute_shell_block(const std::string& scriptContent) {
+  const std::filesystem::path tempPath =
       std::filesystem::temp_directory_path() /
       ("sentra-shell-" + std::to_string(static_cast<long long>(std::time(nullptr))) + ".sh");
   {
-    std::ofstream out(temp_path);
+    std::ofstream out(tempPath);
     if (!out.is_open()) {
       std::cout << "error: failed to create temporary shell script\n";
       return 1;
     }
     out << "#!/usr/bin/env bash\nset -euo pipefail\n";
-    out << script_content << "\n";
+    out << scriptContent << "\n";
   }
   std::filesystem::permissions(
-      temp_path, std::filesystem::perms::owner_exec | std::filesystem::perms::owner_read,
+      tempPath, std::filesystem::perms::owner_exec | std::filesystem::perms::owner_read,
       std::filesystem::perm_options::add);
 
-  const std::string command = "/bin/bash " + shell_escape_single_quoted(temp_path.string());
+  const std::string command = "/bin/bash " + shell_escape_single_quoted(tempPath.string());
   const int status = std::system(command.c_str());
-  std::filesystem::remove(temp_path);
+  std::filesystem::remove(tempPath);
   if (WIFEXITED(status)) {
     return WEXITSTATUS(status);
   }
   return 1;
 }
 
-bool try_copy_text_to_clipboard(const std::string& text, std::string& method_used) {
-  const std::vector<std::pair<std::string, std::string>> copy_commands = {
+bool try_copy_text_to_clipboard(const std::string& text, std::string& methodUsed) {
+  const std::vector<std::pair<std::string, std::string>> copyCommands = {
       {"pbcopy", "pbcopy"},
       {"xclip", "xclip -selection clipboard"},
       {"xsel", "xsel --clipboard --input"},
   };
 
-  for (const auto& entry : copy_commands) {
+  for (const auto& entry : copyCommands) {
     const std::string detect = "command -v " + entry.first + " >/dev/null 2>&1";
     if (std::system(detect.c_str()) != 0) {
       continue;
     }
-    const std::filesystem::path temp_path =
+    const std::filesystem::path tempPath =
         std::filesystem::temp_directory_path() /
         ("sentra-clipboard-" + std::to_string(static_cast<long long>(std::time(nullptr))) + ".txt");
     {
-      std::ofstream out(temp_path, std::ios::trunc);
+      std::ofstream out(tempPath, std::ios::trunc);
       if (!out.is_open()) {
         continue;
       }
       out << text;
     }
 
-    const std::string copy_cmd =
-        "cat " + shell_escape_single_quoted(temp_path.string()) + " | " + entry.second + " >/dev/null 2>&1";
-    const int status = std::system(copy_cmd.c_str());
-    std::filesystem::remove(temp_path);
+    const std::string copyCmd =
+        "cat " + shell_escape_single_quoted(tempPath.string()) + " | " + entry.second + " >/dev/null 2>&1";
+    const int status = std::system(copyCmd.c_str());
+    std::filesystem::remove(tempPath);
     if (WIFEXITED(status) && WEXITSTATUS(status) == 0) {
-      method_used = entry.first;
+      methodUsed = entry.first;
       return true;
     }
   }
 
-  method_used.clear();
+  methodUsed.clear();
   return false;
 }
 
@@ -373,15 +373,15 @@ std::optional<std::reference_wrapper<const ModelSpec>> resolve_model_selector(
     return std::nullopt;
   }
 
-  bool all_digits = true;
+  bool allDigits = true;
   for (char c : value) {
     if (c < '0' || c > '9') {
-      all_digits = false;
+      allDigits = false;
       break;
     }
   }
 
-  if (all_digits) {
+  if (allDigits) {
     const std::size_t index = static_cast<std::size_t>(std::stoul(value));
     if (index == 0 || index > orchestrator.models().size()) {
       return std::nullopt;
@@ -405,42 +405,42 @@ bool is_positive_integer(const std::string& text) {
   return true;
 }
 
-void print_status_line_items(const Orchestrator& orchestrator, const std::string& session_id, bool raw_stream_mode) {
-  std::cout << "session: " << session_id << "\n";
+void print_status_line_items(const Orchestrator& orchestrator, const std::string& sessionId, bool rawStreamMode) {
+  std::cout << "session: " << sessionId << "\n";
   std::cout << "runtime: " << orchestrator.active_runtime_name() << "\n";
   if (const auto model = orchestrator.active_model(); model.has_value()) {
-    std::cout << "model: " << model->get().id << "\n";
+    std::cout << "model: " << model->get().m_id << "\n";
   } else {
     std::cout << "model: none\n";
   }
   std::cout << "profile: " << orchestrator.profile() << "\n";
   std::cout << "max_tokens: " << orchestrator.max_tokens() << "\n";
   std::cout << "context_window_tokens: " << orchestrator.context_window_tokens() << "\n";
-  std::cout << "stream_mode: " << (raw_stream_mode ? "raw" : "render") << "\n";
+  std::cout << "stream_mode: " << (rawStreamMode ? "raw" : "render") << "\n";
   if (!orchestrator.runtime_selection_note().empty()) {
     std::cout << "note: " << orchestrator.runtime_selection_note() << "\n";
   }
   std::cout << "\n";
 }
 
-std::string shorten_for_prompt(const std::string& value, std::size_t max_len) {
-  if (value.size() <= max_len) {
+std::string shorten_for_prompt(const std::string& value, std::size_t maxLen) {
+  if (value.size() <= maxLen) {
     return value;
   }
-  if (max_len < 4) {
-    return value.substr(0, max_len);
+  if (maxLen < 4) {
+    return value.substr(0, maxLen);
   }
-  return value.substr(0, max_len - 3) + "...";
+  return value.substr(0, maxLen - 3) + "...";
 }
 
-std::string make_user_prompt(const Orchestrator& orchestrator, bool menu_mode) {
-  if (menu_mode) {
+std::string make_user_prompt(const Orchestrator& orchestrator, bool menuMode) {
+  if (menuMode) {
     return "\033[1;38;5;39mmenu>\033[0m ";
   }
   const std::string runtime = shorten_for_prompt(orchestrator.active_runtime_name(), 10);
   std::string model = "none";
   if (const auto active = orchestrator.active_model(); active.has_value()) {
-    model = shorten_for_prompt(active->get().id, 14);
+    model = shorten_for_prompt(active->get().m_id, 14);
   }
   return "\033[1;38;5;75msentra\033[0m[\033[38;5;245m" + runtime + "|" + model + "\033[0m]> ";
 }
@@ -487,54 +487,54 @@ std::string normalize_user_shortcut(const std::string& input) {
 
 }  // namespace
 
-Repl::Repl(std::string session_id, SessionStore&& session_store, Orchestrator&& orchestrator,
-           std::string system_prompt)
-    : session_id_(std::move(session_id)),
-      session_store_(std::move(session_store)),
-      orchestrator_(std::move(orchestrator)),
-      system_prompt_(std::move(system_prompt)) {}
+Repl::Repl(std::string sessionId, SessionStore&& sessionStore, Orchestrator&& orchestrator,
+           std::string systemPrompt)
+    : m_sessionId(std::move(sessionId)),
+      m_sessionStore(std::move(sessionStore)),
+      m_orchestrator(std::move(orchestrator)),
+      m_systemPrompt(std::move(systemPrompt)) {}
 
 int Repl::run() {
-  std::vector<Message> history = session_store_.load(session_id_);
-  const auto startup_model = orchestrator_.active_model();
-  const std::string startup_model_id = startup_model.has_value() ? startup_model->get().id : "";
-  session_store_.ensure_session(session_id_, startup_model_id, orchestrator_.active_runtime_name());
+  std::vector<Message> history = m_sessionStore.load(m_sessionId);
+  const auto startupModel = m_orchestrator.active_model();
+  const std::string startupModelId = startupModel.has_value() ? startupModel->get().m_id : "";
+  m_sessionStore.ensure_session(m_sessionId, startupModelId, m_orchestrator.active_runtime_name());
 
   if (history.empty()) {
-    const Message system_msg{Role::System, system_prompt_};
-    history.push_back(system_msg);
-    session_store_.append(session_id_, system_msg);
+    const Message systemMsg{Role::System, m_systemPrompt};
+    history.push_back(systemMsg);
+    m_sessionStore.append(m_sessionId, systemMsg);
   }
 
   std::cout << "Sentra CLI MVP\n";
-  std::cout << "session: " << session_id_ << "\n";
-  std::cout << "runtime: " << orchestrator_.active_runtime_name() << "\n";
-  if (!orchestrator_.runtime_selection_note().empty()) {
-    std::cout << "note: " << orchestrator_.runtime_selection_note() << "\n";
+  std::cout << "session: " << m_sessionId << "\n";
+  std::cout << "runtime: " << m_orchestrator.active_runtime_name() << "\n";
+  if (!m_orchestrator.runtime_selection_note().empty()) {
+    std::cout << "note: " << m_orchestrator.runtime_selection_note() << "\n";
   }
-  if (const auto model = orchestrator_.active_model(); model.has_value()) {
-    std::cout << "model: " << model->get().id << "\n";
+  if (const auto model = m_orchestrator.active_model(); model.has_value()) {
+    std::cout << "model: " << model->get().m_id << "\n";
   }
   std::cout << "type /help for commands\n\n";
 
   std::string line;
-  bool menu_shortcut_mode = false;
-  bool raw_stream_mode = (orchestrator_.profile() == "fast");
+  bool menuShortcutMode = false;
+  bool rawStreamMode = (m_orchestrator.profile() == "fast");
   while (true) {
-    std::cout << make_user_prompt(orchestrator_, menu_shortcut_mode);
+    std::cout << make_user_prompt(m_orchestrator, menuShortcutMode);
     if (!std::getline(std::cin, line)) {
       std::cout << "\n";
       break;
     }
 
-    if (menu_shortcut_mode) {
+    if (menuShortcutMode) {
       const std::string shortcut = trim(line);
       if (shortcut == "q" || shortcut == "quit" || shortcut == "exit") {
         line = "/menu run 0";
       } else if (is_positive_integer(shortcut)) {
         line = "/menu run " + shortcut;
       } else if (!shortcut.empty() && shortcut[0] == '/') {
-        menu_shortcut_mode = false;
+        menuShortcutMode = false;
       } else if (shortcut.empty()) {
         continue;
       } else {
@@ -543,7 +543,7 @@ int Repl::run() {
       }
     }
 
-    if (!menu_shortcut_mode && !line.empty() && line[0] != '/') {
+    if (!menuShortcutMode && !line.empty() && line[0] != '/') {
       line = normalize_user_shortcut(line);
     }
 
@@ -552,7 +552,7 @@ int Repl::run() {
     }
 
     if (line == "/status") {
-      print_status_line_items(orchestrator_, session_id_, raw_stream_mode);
+      print_status_line_items(m_orchestrator, m_sessionId, rawStreamMode);
       continue;
     }
 
@@ -591,7 +591,7 @@ int Repl::run() {
 
     if (line == "/menu") {
       print_main_menu();
-      menu_shortcut_mode = true;
+      menuShortcutMode = true;
       continue;
     }
 
@@ -609,15 +609,15 @@ int Repl::run() {
         break;
       }
       if (action == 1) {
-        print_status_line_items(orchestrator_, session_id_, raw_stream_mode);
+        print_status_line_items(m_orchestrator, m_sessionId, rawStreamMode);
         continue;
       }
       if (action == 2) {
-        const auto active = orchestrator_.active_model();
+        const auto active = m_orchestrator.active_model();
         std::size_t idx = 1;
-        for (const auto& model : orchestrator_.models()) {
-          const bool is_active = active.has_value() && model.id == active->get().id;
-          print_model_line(model, is_active, idx);
+        for (const auto& model : m_orchestrator.models()) {
+          const bool isActive = active.has_value() && model.m_id == active->get().m_id;
+          print_model_line(model, isActive, idx);
           ++idx;
         }
         std::cout << "\n";
@@ -625,45 +625,45 @@ int Repl::run() {
       }
       if (action == 3) {
         std::cout << "model id or number: ";
-        std::string model_selector;
-        std::getline(std::cin, model_selector);
-        const auto selected = resolve_model_selector(orchestrator_, model_selector);
+        std::string modelSelector;
+        std::getline(std::cin, modelSelector);
+        const auto selected = resolve_model_selector(m_orchestrator, modelSelector);
         if (!selected.has_value()) {
-          std::cout << "error: unknown model selector: " << model_selector << "\n\n";
+          std::cout << "error: unknown model selector: " << modelSelector << "\n\n";
           continue;
         }
         std::string error;
-        if (!orchestrator_.set_active_model(selected->get().id, error)) {
+        if (!m_orchestrator.set_active_model(selected->get().m_id, error)) {
           std::cout << "error: " << error << "\n\n";
         } else {
-          session_store_.update_metadata(session_id_, selected->get().id, orchestrator_.active_runtime_name());
-          std::cout << "active model: " << selected->get().id << "\n\n";
+          m_sessionStore.update_metadata(m_sessionId, selected->get().m_id, m_orchestrator.active_runtime_name());
+          std::cout << "active model: " << selected->get().m_id << "\n\n";
         }
         continue;
       }
       if (action == 4) {
         std::cout << "model id or number to download: ";
-        std::string model_selector;
-        std::getline(std::cin, model_selector);
-        const auto selected = resolve_model_selector(orchestrator_, model_selector);
+        std::string modelSelector;
+        std::getline(std::cin, modelSelector);
+        const auto selected = resolve_model_selector(m_orchestrator, modelSelector);
         if (!selected.has_value()) {
-          std::cout << "error: unknown model selector: " << model_selector << "\n\n";
+          std::cout << "error: unknown model selector: " << modelSelector << "\n\n";
           continue;
         }
         const std::string command =
-            "./scripts/download_model.sh " + shell_escape_single_quoted(selected->get().id) + " " +
-            shell_escape_single_quoted(orchestrator_.models_file_path());
+            "./scripts/download_model.sh " + shell_escape_single_quoted(selected->get().m_id) + " " +
+            shell_escape_single_quoted(m_orchestrator.models_file_path());
         const int code = std::system(command.c_str());
         if (code != 0) {
           std::cout << "download failed with exit code: " << code << "\n\n";
         } else {
-          std::cout << "download complete for model: " << selected->get().id << "\n\n";
+          std::cout << "download complete for model: " << selected->get().m_id << "\n\n";
         }
         continue;
       }
       if (action == 5) {
         std::string report;
-        if (orchestrator_.validate_active_model(report)) {
+        if (m_orchestrator.validate_active_model(report)) {
           std::cout << report << "\n\n";
         } else {
           std::cout << "validation failed: " << report << "\n\n";
@@ -671,25 +671,25 @@ int Repl::run() {
         continue;
       }
       if (action == 6) {
-        const auto metadata = session_store_.load_metadata(session_id_);
+        const auto metadata = m_sessionStore.load_metadata(m_sessionId);
         if (!metadata.has_value()) {
           std::cout << "session metadata not found\n\n";
         } else {
-          std::cout << "session_id: " << metadata->session_id << "\n";
-          std::cout << "created_at: " << format_epoch(metadata->created_at_epoch) << "\n";
-          std::cout << "active_model_id: " << metadata->active_model_id << "\n";
-          std::cout << "runtime_name: " << metadata->runtime_name << "\n\n";
+          std::cout << "session_id: " << metadata->m_sessionId << "\n";
+          std::cout << "created_at: " << format_epoch(metadata->m_createdAtEpoch) << "\n";
+          std::cout << "active_model_id: " << metadata->m_activeModelId << "\n";
+          std::cout << "runtime_name: " << metadata->m_runtimeName << "\n\n";
         }
         continue;
       }
       if (action == 7) {
-        const auto sessions = session_store_.list_sessions();
+        const auto sessions = m_sessionStore.list_sessions();
         if (sessions.empty()) {
           std::cout << "no sessions found\n\n";
         } else {
           for (const auto& session : sessions) {
-            std::cout << session.session_id << " | created=" << format_epoch(session.created_at_epoch)
-                      << " | model=" << session.active_model_id << " | runtime=" << session.runtime_name << "\n";
+            std::cout << session.m_sessionId << " | created=" << format_epoch(session.m_createdAtEpoch)
+                      << " | model=" << session.m_activeModelId << " | runtime=" << session.m_runtimeName << "\n";
           }
           std::cout << "\n";
         }
@@ -701,11 +701,11 @@ int Repl::run() {
           std::cout << "no code block found in latest assistant reply\n\n";
         } else {
           for (std::size_t i = 0; i < blocks.size(); ++i) {
-            std::string lang = trim(blocks[i].language);
+            std::string lang = trim(blocks[i].m_language);
             if (lang.empty()) {
               lang = "text";
             }
-            std::cout << "[" << (i + 1) << "] lang=" << lang << " bytes=" << blocks[i].content.size() << "\n";
+            std::cout << "[" << (i + 1) << "] lang=" << lang << " bytes=" << blocks[i].m_content.size() << "\n";
           }
           std::cout << "\n";
         }
@@ -713,17 +713,17 @@ int Repl::run() {
       }
       if (action == 9) {
         std::cout << "code block number (default 1): ";
-        std::string code_selector;
-        std::getline(std::cin, code_selector);
+        std::string codeSelector;
+        std::getline(std::cin, codeSelector);
         const auto blocks = extract_code_blocks_from_history(history);
         if (blocks.empty()) {
           std::cout << "no code block found in latest assistant reply\n\n";
           continue;
         }
         std::size_t index = 1;
-        if (!trim(code_selector).empty()) {
+        if (!trim(codeSelector).empty()) {
           try {
-            index = static_cast<std::size_t>(std::stoul(trim(code_selector)));
+            index = static_cast<std::size_t>(std::stoul(trim(codeSelector)));
           } catch (...) {
             std::cout << "error: invalid code block index\n\n";
             continue;
@@ -734,7 +734,7 @@ int Repl::run() {
           continue;
         }
         std::string method;
-        if (try_copy_text_to_clipboard(blocks[index - 1].content, method)) {
+        if (try_copy_text_to_clipboard(blocks[index - 1].m_content, method)) {
           std::cout << "copied code block [" << index << "] to clipboard via " << method << "\n\n";
         } else {
           std::cout << "clipboard tool not found (install pbcopy/xclip/xsel)\n\n";
@@ -743,17 +743,17 @@ int Repl::run() {
       }
       if (action == 10) {
         std::cout << "shell code block number (default 1): ";
-        std::string shell_selector;
-        std::getline(std::cin, shell_selector);
+        std::string shellSelector;
+        std::getline(std::cin, shellSelector);
         const auto blocks = extract_shell_blocks_from_history(history);
         if (blocks.empty()) {
           std::cout << "no shell code block found in latest assistant reply\n\n";
           continue;
         }
         std::size_t index = 1;
-        if (!trim(shell_selector).empty()) {
+        if (!trim(shellSelector).empty()) {
           try {
-            index = static_cast<std::size_t>(std::stoul(trim(shell_selector)));
+            index = static_cast<std::size_t>(std::stoul(trim(shellSelector)));
           } catch (...) {
             std::cout << "error: invalid shell block index\n\n";
             continue;
@@ -764,7 +764,7 @@ int Repl::run() {
           continue;
         }
         std::cout << "about to execute shell block [" << index << "]:\n";
-        std::cout << blocks[index - 1].content << "\n";
+        std::cout << blocks[index - 1].m_content << "\n";
         std::cout << "type RUN to confirm: ";
         std::string confirmation;
         std::getline(std::cin, confirmation);
@@ -772,8 +772,8 @@ int Repl::run() {
           std::cout << "execution cancelled\n\n";
           continue;
         }
-        const int exit_code = execute_shell_block(blocks[index - 1].content);
-        std::cout << "\ncommand exit code: " << exit_code << "\n\n";
+        const int exitCode = execute_shell_block(blocks[index - 1].m_content);
+        std::cout << "\ncommand exit code: " << exitCode << "\n\n";
         continue;
       }
       if (action == 11) {
@@ -810,15 +810,15 @@ int Repl::run() {
     if (line.rfind("/profile ", 0) == 0) {
       const std::string mode = trim(line.substr(std::string("/profile ").size()));
       std::string error;
-      if (!orchestrator_.set_profile(mode, error)) {
+      if (!m_orchestrator.set_profile(mode, error)) {
         std::cout << "error: " << error << "\n\n";
         continue;
       }
-      raw_stream_mode = (orchestrator_.profile() == "fast");
-      std::cout << "profile set: " << orchestrator_.profile() << "\n";
-      std::cout << "max_tokens: " << orchestrator_.max_tokens() << ", context_window_tokens: "
-                << orchestrator_.context_window_tokens() << ", stream_mode: "
-                << (raw_stream_mode ? "raw" : "render") << "\n\n";
+      rawStreamMode = (m_orchestrator.profile() == "fast");
+      std::cout << "profile set: " << m_orchestrator.profile() << "\n";
+      std::cout << "max_tokens: " << m_orchestrator.max_tokens() << ", context_window_tokens: "
+                << m_orchestrator.context_window_tokens() << ", stream_mode: "
+                << (rawStreamMode ? "raw" : "render") << "\n\n";
       continue;
     }
 
@@ -826,8 +826,8 @@ int Repl::run() {
       const std::string value = trim(line.substr(std::string("/set max_tokens ").size()));
       try {
         const std::size_t n = static_cast<std::size_t>(std::stoull(value));
-        orchestrator_.set_max_tokens(n);
-        std::cout << "max_tokens set to " << orchestrator_.max_tokens() << "\n\n";
+        m_orchestrator.set_max_tokens(n);
+        std::cout << "max_tokens set to " << m_orchestrator.max_tokens() << "\n\n";
       } catch (...) {
         std::cout << "error: invalid max_tokens value: " << value << "\n\n";
       }
@@ -838,8 +838,8 @@ int Repl::run() {
       const std::string value = trim(line.substr(std::string("/set context ").size()));
       try {
         const std::size_t n = static_cast<std::size_t>(std::stoull(value));
-        orchestrator_.set_context_window_tokens(n);
-        std::cout << "context_window_tokens set to " << orchestrator_.context_window_tokens() << "\n\n";
+        m_orchestrator.set_context_window_tokens(n);
+        std::cout << "context_window_tokens set to " << m_orchestrator.context_window_tokens() << "\n\n";
       } catch (...) {
         std::cout << "error: invalid context token value: " << value << "\n\n";
       }
@@ -849,10 +849,10 @@ int Repl::run() {
     if (line.rfind("/set stream ", 0) == 0) {
       const std::string value = to_lower(trim(line.substr(std::string("/set stream ").size())));
       if (value == "raw") {
-        raw_stream_mode = true;
+        rawStreamMode = true;
         std::cout << "stream mode set to raw\n\n";
       } else if (value == "render" || value == "pretty") {
-        raw_stream_mode = false;
+        rawStreamMode = false;
         std::cout << "stream mode set to render\n\n";
       } else {
         std::cout << "error: unknown stream mode: " << value << " (use raw|render)\n\n";
@@ -867,11 +867,11 @@ int Repl::run() {
         continue;
       }
       for (std::size_t i = 0; i < blocks.size(); ++i) {
-        std::string lang = trim(blocks[i].language);
+        std::string lang = trim(blocks[i].m_language);
         if (lang.empty()) {
           lang = "text";
         }
-        std::cout << "[" << (i + 1) << "] lang=" << lang << " bytes=" << blocks[i].content.size() << "\n";
+        std::cout << "[" << (i + 1) << "] lang=" << lang << " bytes=" << blocks[i].m_content.size() << "\n";
       }
       std::cout << "copy one with: /code copy <n>\n\n";
       continue;
@@ -898,7 +898,7 @@ int Repl::run() {
         continue;
       }
       std::string method;
-      if (try_copy_text_to_clipboard(blocks[index - 1].content, method)) {
+      if (try_copy_text_to_clipboard(blocks[index - 1].m_content, method)) {
         std::cout << "copied code block [" << index << "] to clipboard via " << method << "\n\n";
       } else {
         std::cout << "clipboard tool not found (install pbcopy/xclip/xsel)\n\n";
@@ -913,8 +913,8 @@ int Repl::run() {
         continue;
       }
       for (std::size_t i = 0; i < blocks.size(); ++i) {
-        std::cout << "[" << (i + 1) << "] ```" << blocks[i].language << "```\n";
-        std::cout << blocks[i].content << "\n";
+        std::cout << "[" << (i + 1) << "] ```" << blocks[i].m_language << "```\n";
+        std::cout << blocks[i].m_content << "\n";
       }
       std::cout << "run one with: /code shell run <n>\n\n";
       continue;
@@ -943,7 +943,7 @@ int Repl::run() {
 
       const auto& block = blocks[index - 1];
       std::cout << "about to execute shell block [" << index << "]:\n";
-      std::cout << block.content << "\n";
+      std::cout << block.m_content << "\n";
       std::cout << "type RUN to confirm: ";
       std::string confirmation;
       std::getline(std::cin, confirmation);
@@ -952,37 +952,37 @@ int Repl::run() {
         continue;
       }
 
-      const int exit_code = execute_shell_block(block.content);
-      std::cout << "\ncommand exit code: " << exit_code << "\n\n";
+      const int exitCode = execute_shell_block(block.m_content);
+      std::cout << "\ncommand exit code: " << exitCode << "\n\n";
       continue;
     }
 
     if (line == "/session") {
-      std::cout << "session: " << session_id_ << "\n\n";
+      std::cout << "session: " << m_sessionId << "\n\n";
       continue;
     }
 
     if (line == "/session info") {
-      const auto metadata = session_store_.load_metadata(session_id_);
+      const auto metadata = m_sessionStore.load_metadata(m_sessionId);
       if (!metadata.has_value()) {
         std::cout << "session metadata not found\n\n";
       } else {
-        std::cout << "session_id: " << metadata->session_id << "\n";
-        std::cout << "created_at: " << format_epoch(metadata->created_at_epoch) << "\n";
-        std::cout << "active_model_id: " << metadata->active_model_id << "\n";
-        std::cout << "runtime_name: " << metadata->runtime_name << "\n\n";
+        std::cout << "session_id: " << metadata->m_sessionId << "\n";
+        std::cout << "created_at: " << format_epoch(metadata->m_createdAtEpoch) << "\n";
+        std::cout << "active_model_id: " << metadata->m_activeModelId << "\n";
+        std::cout << "runtime_name: " << metadata->m_runtimeName << "\n\n";
       }
       continue;
     }
 
     if (line == "/session list") {
-      const auto sessions = session_store_.list_sessions();
+      const auto sessions = m_sessionStore.list_sessions();
       if (sessions.empty()) {
         std::cout << "no sessions found\n\n";
       } else {
         for (const auto& session : sessions) {
-          std::cout << session.session_id << " | created=" << format_epoch(session.created_at_epoch)
-                    << " | model=" << session.active_model_id << " | runtime=" << session.runtime_name << "\n";
+          std::cout << session.m_sessionId << " | created=" << format_epoch(session.m_createdAtEpoch)
+                    << " | model=" << session.m_activeModelId << " | runtime=" << session.m_runtimeName << "\n";
         }
         std::cout << "\n";
       }
@@ -990,11 +990,11 @@ int Repl::run() {
     }
 
     if (line == "/model list") {
-      const auto active = orchestrator_.active_model();
+      const auto active = m_orchestrator.active_model();
       std::size_t idx = 1;
-      for (const auto& model : orchestrator_.models()) {
-        const bool is_active = active.has_value() && model.id == active->get().id;
-        print_model_line(model, is_active, idx);
+      for (const auto& model : m_orchestrator.models()) {
+        const bool isActive = active.has_value() && model.m_id == active->get().m_id;
+        print_model_line(model, isActive, idx);
         ++idx;
       }
       std::cout << "\n";
@@ -1002,7 +1002,7 @@ int Repl::run() {
     }
 
     if (line == "/model current") {
-      if (const auto active = orchestrator_.active_model(); active.has_value()) {
+      if (const auto active = m_orchestrator.active_model(); active.has_value()) {
         print_model_line(active->get(), true);
       } else {
         std::cout << "no active model\n";
@@ -1013,19 +1013,19 @@ int Repl::run() {
 
     if (line.rfind("/model use ", 0) == 0) {
       const std::string selector = trim(line.substr(std::string("/model use ").size()));
-      const auto selected = resolve_model_selector(orchestrator_, selector);
+      const auto selected = resolve_model_selector(m_orchestrator, selector);
       if (!selected.has_value()) {
         std::cout << "error: unknown model selector: " << selector << " (use /model list)\n\n";
         continue;
       }
       std::string error;
-      if (!orchestrator_.set_active_model(selected->get().id, error)) {
+      if (!m_orchestrator.set_active_model(selected->get().m_id, error)) {
         std::cout << "error: " << error << "\n\n";
       } else {
-        const auto active = orchestrator_.active_model();
+        const auto active = m_orchestrator.active_model();
         if (active.has_value()) {
-          session_store_.update_metadata(session_id_, active->get().id, orchestrator_.active_runtime_name());
-          std::cout << "active model: " << active->get().id << "\n\n";
+          m_sessionStore.update_metadata(m_sessionId, active->get().m_id, m_orchestrator.active_runtime_name());
+          std::cout << "active model: " << active->get().m_id << "\n\n";
         }
       }
       continue;
@@ -1037,21 +1037,21 @@ int Repl::run() {
         std::cout << "error: model selector required\n\n";
         continue;
       }
-      const auto selected = resolve_model_selector(orchestrator_, selector);
+      const auto selected = resolve_model_selector(m_orchestrator, selector);
       if (!selected.has_value()) {
         std::cout << "error: unknown model selector: " << selector << " (use /model list)\n\n";
         continue;
       }
-      const std::string& model_id = selected->get().id;
+      const std::string& modelId = selected->get().m_id;
 
       const std::string command =
-          "./scripts/download_model.sh " + shell_escape_single_quoted(model_id) + " " +
-          shell_escape_single_quoted(orchestrator_.models_file_path());
+          "./scripts/download_model.sh " + shell_escape_single_quoted(modelId) + " " +
+          shell_escape_single_quoted(m_orchestrator.models_file_path());
       const int code = std::system(command.c_str());
       if (code != 0) {
         std::cout << "download failed with exit code: " << code << "\n\n";
       } else {
-        std::cout << "download complete for model: " << model_id << "\n\n";
+        std::cout << "download complete for model: " << modelId << "\n\n";
       }
       continue;
     }
@@ -1065,25 +1065,25 @@ int Repl::run() {
       }
 
       ModelSpec model;
-      model.id = parts[0];
-      model.name = parts[0];
-      model.hf_repo = parts[1];
-      model.hf_file = parts[2];
-      model.local_path = parts.size() >= 4 ? parts[3] : ("./models/" + parts[2]);
+      model.m_id = parts[0];
+      model.m_name = parts[0];
+      model.m_hfRepo = parts[1];
+      model.m_hfFile = parts[2];
+      model.m_localPath = parts.size() >= 4 ? parts[3] : ("./models/" + parts[2]);
 
       std::string error;
-      if (!orchestrator_.add_model(model, error)) {
+      if (!m_orchestrator.add_model(model, error)) {
         std::cout << "error: " << error << "\n\n";
         continue;
       }
-      std::cout << "added model: " << model.id << " -> " << model.local_path << "\n";
-      std::cout << "next: /model download " << model.id << "\n\n";
+      std::cout << "added model: " << model.m_id << " -> " << model.m_localPath << "\n";
+      std::cout << "next: /model download " << model.m_id << "\n\n";
       continue;
     }
 
     if (line == "/model validate") {
       std::string report;
-      if (orchestrator_.validate_active_model(report)) {
+      if (m_orchestrator.validate_active_model(report)) {
         std::cout << report << "\n\n";
       } else {
         std::cout << "validation failed: " << report << "\n\n";
@@ -1093,13 +1093,13 @@ int Repl::run() {
 
     if (line.rfind("/model remove ", 0) == 0) {
       const std::string selector = trim(line.substr(std::string("/model remove ").size()));
-      const auto model = resolve_model_selector(orchestrator_, selector);
+      const auto model = resolve_model_selector(m_orchestrator, selector);
       if (!model.has_value()) {
         std::cout << "error: unknown model selector: " << selector << " (use /model list)\n\n";
         continue;
       }
-      const std::string model_id = model->get().id;
-      std::cout << "confirm remove local file for model '" << model_id << "' at " << model->get().local_path
+      const std::string modelId = model->get().m_id;
+      std::cout << "confirm remove local file for model '" << modelId << "' at " << model->get().m_localPath
                 << "? [y/N] ";
       std::string confirmation;
       std::getline(std::cin, confirmation);
@@ -1109,25 +1109,25 @@ int Repl::run() {
       }
 
       std::error_code ec;
-      const bool removed = std::filesystem::remove(model->get().local_path, ec);
+      const bool removed = std::filesystem::remove(model->get().m_localPath, ec);
       if (ec) {
         std::cout << "error removing file: " << ec.message() << "\n\n";
         continue;
       }
       if (!removed) {
-        std::cout << "no file removed (already absent): " << model->get().local_path << "\n\n";
+        std::cout << "no file removed (already absent): " << model->get().m_localPath << "\n\n";
       } else {
-        std::cout << "removed: " << model->get().local_path << "\n";
+        std::cout << "removed: " << model->get().m_localPath << "\n";
       }
 
-      const auto active = orchestrator_.active_model();
-      if (active.has_value() && active->get().id == model_id) {
-        for (const auto& candidate : orchestrator_.models()) {
-          if (candidate.id != model_id) {
+      const auto active = m_orchestrator.active_model();
+      if (active.has_value() && active->get().m_id == modelId) {
+        for (const auto& candidate : m_orchestrator.models()) {
+          if (candidate.m_id != modelId) {
             std::string error;
-            if (orchestrator_.set_active_model(candidate.id, error)) {
-              std::cout << "active model switched to: " << candidate.id << "\n";
-              session_store_.update_metadata(session_id_, candidate.id, orchestrator_.active_runtime_name());
+            if (m_orchestrator.set_active_model(candidate.m_id, error)) {
+              std::cout << "active model switched to: " << candidate.m_id << "\n";
+              m_sessionStore.update_metadata(m_sessionId, candidate.m_id, m_orchestrator.active_runtime_name());
             }
             break;
           }
@@ -1141,42 +1141,42 @@ int Repl::run() {
       continue;
     }
 
-    Message user_msg{Role::User, line};
-    history.push_back(user_msg);
-    session_store_.append(session_id_, user_msg);
+    Message userMsg{Role::User, line};
+    history.push_back(userMsg);
+    m_sessionStore.append(m_sessionId, userMsg);
 
     std::cout << "sentra> ";
     try {
       std::string streamed;
-      auto result = orchestrator_.respond(history, [&](const std::string& token) {
+      auto result = m_orchestrator.respond(history, [&](const std::string& token) {
         streamed += token;
-        if (raw_stream_mode) {
+        if (rawStreamMode) {
           std::cout << token;
           std::cout.flush();
         }
       });
-      if (!raw_stream_mode) {
-        std::cout << render_markdown_for_terminal(result.text);
+      if (!rawStreamMode) {
+        std::cout << render_markdown_for_terminal(result.m_text);
       }
       std::cout << "\n";
-      if (result.context_truncated && !result.warning.empty()) {
-        std::cout << "[warn] " << result.warning << "\n";
+      if (result.m_contextTruncated && !result.m_warning.empty()) {
+        std::cout << "[warn] " << result.m_warning << "\n";
       }
-      if (result.total_ms > 0.0) {
-        std::cout << "[perf] first_token=" << std::fixed << std::setprecision(1) << result.first_token_ms
-                  << "ms total=" << result.total_ms << "ms tokens=" << result.generated_tokens
-                  << " tps=" << result.tokens_per_second << "\n";
+      if (result.m_totalMs > 0.0) {
+        std::cout << "[perf] first_token=" << std::fixed << std::setprecision(1) << result.m_firstTokenMs
+                  << "ms total=" << result.m_totalMs << "ms tokens=" << result.m_generatedTokens
+                  << " tps=" << result.m_tokensPerSecond << "\n";
       }
       std::cout << "\n";
 
-      Message assistant_msg{Role::Assistant, result.text};
-      history.push_back(assistant_msg);
-      session_store_.append(session_id_, assistant_msg);
+      Message assistantMsg{Role::Assistant, result.m_text};
+      history.push_back(assistantMsg);
+      m_sessionStore.append(m_sessionId, assistantMsg);
       if (!extract_shell_blocks_from_history(history).empty()) {
         std::cout << "[tip] assistant included shell code. review with /code shell\n\n";
       }
-      if (const auto active = orchestrator_.active_model(); active.has_value()) {
-        session_store_.update_metadata(session_id_, active->get().id, orchestrator_.active_runtime_name());
+      if (const auto active = m_orchestrator.active_model(); active.has_value()) {
+        m_sessionStore.update_metadata(m_sessionId, active->get().m_id, m_orchestrator.active_runtime_name());
       }
     } catch (const std::exception& ex) {
       std::cout << "\nerror: " << ex.what() << "\n\n";

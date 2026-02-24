@@ -18,10 +18,10 @@ std::string trim(const std::string& value) {
 
 }  // namespace
 
-AppState::AppState(std::string state_path) : state_path_(std::move(state_path)) {}
+AppState::AppState(std::string statePath) : m_statePath(std::move(statePath)) {}
 
 std::string AppState::load_active_model_id() const {
-  std::ifstream in(state_path_);
+  std::ifstream in(m_statePath);
   if (!in.is_open()) {
     return "";
   }
@@ -46,18 +46,18 @@ std::string AppState::load_active_model_id() const {
   return "";
 }
 
-void AppState::save_active_model_id(const std::string& model_id) const {
-  const std::filesystem::path path(state_path_);
+void AppState::save_active_model_id(const std::string& modelId) const {
+  const std::filesystem::path path(m_statePath);
   const std::filesystem::path parent = path.parent_path();
   if (!parent.empty()) {
     std::filesystem::create_directories(parent);
   }
 
-  std::ofstream out(state_path_, std::ios::trunc);
+  std::ofstream out(m_statePath, std::ios::trunc);
   if (!out.is_open()) {
     return;
   }
-  out << "active_model_id=" << model_id << "\n";
+  out << "active_model_id=" << modelId << "\n";
 }
 
 }  // namespace sentra

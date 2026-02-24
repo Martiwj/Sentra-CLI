@@ -11,12 +11,12 @@ namespace sentra {
 using StreamCallback = std::function<void(const std::string&)>;
 
 struct LlamaRuntimeOptions {
-  int n_threads{0};
-  int n_threads_batch{0};
-  int n_batch{512};
-  bool offload_kqv{false};
-  bool op_offload{false};
-  std::string profile{"balanced"};
+  int m_nThreads{0};
+  int m_nThreadsBatch{0};
+  int m_nBatch{512};
+  bool m_offloadKqv{false};
+  bool m_opOffload{false};
+  std::string m_profile{"balanced"};
 };
 
 class IModelRuntime {
@@ -28,7 +28,7 @@ class IModelRuntime {
 };
 
 std::unique_ptr<IModelRuntime> make_mock_runtime();
-std::unique_ptr<IModelRuntime> make_local_binary_runtime(const std::string& command_template);
+std::unique_ptr<IModelRuntime> make_local_binary_runtime(const std::string& commandTemplate);
 std::unique_ptr<IModelRuntime> make_llama_inproc_runtime(const LlamaRuntimeOptions& options);
 
 }  // namespace sentra

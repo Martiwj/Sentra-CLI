@@ -9,16 +9,16 @@ namespace sentra {
 
 class Repl {
  public:
-  Repl(std::string session_id, SessionStore&& session_store, Orchestrator&& orchestrator,
-       std::string system_prompt);
+  Repl(std::string sessionId, SessionStore&& sessionStore, Orchestrator&& orchestrator,
+       std::string systemPrompt);
 
   int run();
 
  private:
-  std::string session_id_;
-  SessionStore session_store_;
-  Orchestrator orchestrator_;
-  std::string system_prompt_;
+  std::string m_sessionId;
+  SessionStore m_sessionStore;
+  Orchestrator m_orchestrator;
+  std::string m_systemPrompt;
 };
 
 }  // namespace sentra

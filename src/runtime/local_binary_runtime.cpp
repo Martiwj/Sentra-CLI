@@ -32,8 +32,8 @@ std::string shell_escape_single_quoted(const std::string& value) {
 
 std::string render_prompt(const GenerationRequest& request) {
   std::ostringstream prompt;
-  for (const auto& message : request.messages) {
-    prompt << role_to_string(message.role) << ": " << message.content << "\n";
+  for (const auto& message : request.m_messages) {
+    prompt << role_to_string(message.m_role) << ": " << message.m_content << "\n";
   }
   prompt << "assistant: ";
   return prompt.str();
@@ -66,13 +66,13 @@ bool has_balanced_braces(const std::string& text) {
   return depth == 0;
 }
 
-std::string first_command_token(const std::string& command_template) {
-  const auto first_non_space = command_template.find_first_not_of(" \t");
-  if (first_non_space == std::string::npos) {
+std::string first_command_token(const std::string& commandTemplate) {
+  const auto firstNonSpace = commandTemplate.find_first_not_of(" \t");
+  if (firstNonSpace == std::string::npos) {
     return "";
   }
-  const auto end = command_template.find_first_of(" \t", first_non_space);
-  return command_template.substr(first_non_space, end - first_non_space);
+  const auto end = commandTemplate.find_first_of(" \t", firstNonSpace);
+  return commandTemplate.substr(firstNonSpace, end - firstNonSpace);
 }
 
 bool executable_exists_on_path(const std::string& executable) {
@@ -83,11 +83,11 @@ bool executable_exists_on_path(const std::string& executable) {
     return access(executable.c_str(), X_OK) == 0;
   }
 
-  const char* path_env = std::getenv("PATH");
-  if (!path_env) {
+  const char* pathEnv = std::getenv("PATH");
+  if (!pathEnv) {
     return false;
   }
-  std::istringstream paths(path_env);
+  std::istringstream paths(pathEnv);
   std::string path;
   while (std::getline(paths, path, ':')) {
     const std::filesystem::path candidate = std::filesystem::path(path) / executable;
@@ -113,106 +113,106 @@ int command_exit_code(int status) {
 
 class LocalBinaryRuntime final : public IModelRuntime {
  public:
-  explicit LocalBinaryRuntime(std::string command_template)
-      : command_template_(std::move(command_template)) {}
+  explicit LocalBinaryRuntime(std::string commandTemplate)
+      : m_commandTemplate(std::move(commandTemplate)) {}
 
   std::string name() const override { return "local-binary"; }
 
   bool is_available() const override {
-    if (command_template_.empty()) {
+    if (m_commandTemplate.empty()) {
       return false;
     }
-    if (!has_token(command_template_, "{prompt}") || !has_token(command_template_, "{model_path}") ||
-        !has_token(command_template_, "{max_tokens}")) {
+    if (!has_token(m_commandTemplate, "{prompt}") || !has_token(m_commandTemplate, "{model_path}") ||
+        !has_token(m_commandTemplate, "{max_tokens}")) {
       return false;
     }
-    if (!has_balanced_braces(command_template_)) {
+    if (!has_balanced_braces(m_commandTemplate)) {
       return false;
     }
-    const std::string executable = first_command_token(command_template_);
+    const std::string executable = first_command_token(m_commandTemplate);
     return executable_exists_on_path(executable);
   }
 
 GenerationResult generate(const GenerationRequest& request, StreamCallback on_token) override {
-    if (command_template_.empty()) {
+    if (m_commandTemplate.empty()) {
       throw std::runtime_error("local-binary runtime unavailable: empty command template");
     }
-    if (!has_token(command_template_, "{prompt}") || !has_token(command_template_, "{model_path}") ||
-        !has_token(command_template_, "{max_tokens}")) {
+    if (!has_token(m_commandTemplate, "{prompt}") || !has_token(m_commandTemplate, "{model_path}") ||
+        !has_token(m_commandTemplate, "{max_tokens}")) {
       throw std::runtime_error(
           "local-binary runtime unavailable: template requires {prompt}, {model_path}, and {max_tokens}");
     }
-    if (!has_balanced_braces(command_template_)) {
+    if (!has_balanced_braces(m_commandTemplate)) {
       throw std::runtime_error("local-binary runtime unavailable: malformed template placeholders");
     }
-    const std::string executable = first_command_token(command_template_);
+    const std::string executable = first_command_token(m_commandTemplate);
     if (!executable_exists_on_path(executable)) {
       throw std::runtime_error("local-binary runtime unavailable: executable not found: " + executable);
     }
-    if (request.model_path.empty()) {
+    if (request.m_modelPath.empty()) {
       throw std::runtime_error("local-binary runtime requires a non-empty model_path");
     }
 
-    const auto t_start = std::chrono::steady_clock::now();
-    std::string command = command_template_;
+    const auto tStart = std::chrono::steady_clock::now();
+    std::string command = m_commandTemplate;
     replace_all(command, "{prompt}", shell_escape_single_quoted(render_prompt(request)));
-    replace_all(command, "{model_path}", shell_escape_single_quoted(request.model_path));
-    replace_all(command, "{max_tokens}", std::to_string(request.max_tokens));
+    replace_all(command, "{model_path}", shell_escape_single_quoted(request.m_modelPath));
+    replace_all(command, "{max_tokens}", std::to_string(request.m_maxTokens));
 
     std::string output;
 
-    const std::filesystem::path output_path =
+    const std::filesystem::path outputPath =
         std::filesystem::temp_directory_path() /
         ("sentra-local-binary-" + std::to_string(static_cast<long long>(std::time(nullptr))) + ".log");
-    command += " > " + shell_escape_single_quoted(output_path.string()) + " 2>&1";
-    const int exit_code = command_exit_code(std::system(command.c_str()));
+    command += " > " + shell_escape_single_quoted(outputPath.string()) + " 2>&1";
+    const int exitCode = command_exit_code(std::system(command.c_str()));
 
     {
-      std::ifstream in(output_path);
+      std::ifstream in(outputPath);
       std::ostringstream collected;
       collected << in.rdbuf();
       output = collected.str();
     }
-    std::filesystem::remove(output_path);
+    std::filesystem::remove(outputPath);
 
     if (!output.empty()) {
       on_token(output);
     }
-    if (exit_code != 0) {
-      throw std::runtime_error("local-binary runtime failed with exit code " + std::to_string(exit_code) +
+    if (exitCode != 0) {
+      throw std::runtime_error("local-binary runtime failed with exit code " + std::to_string(exitCode) +
                                ": " + output);
     }
-    const auto t_end = std::chrono::steady_clock::now();
-    const double total_ms =
-        std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(t_end - t_start).count();
-    std::size_t approx_tokens = 0;
-    bool in_word = false;
+    const auto tEnd = std::chrono::steady_clock::now();
+    const double totalMs =
+        std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(tEnd - tStart).count();
+    std::size_t approxTokens = 0;
+    bool inWord = false;
     for (char c : output) {
       if (c == ' ' || c == '\n' || c == '\t' || c == '\r') {
-        in_word = false;
-      } else if (!in_word) {
-        in_word = true;
-        ++approx_tokens;
+        inWord = false;
+      } else if (!inWord) {
+        inWord = true;
+        ++approxTokens;
       }
     }
-    const double tps = total_ms > 0.0 ? (static_cast<double>(approx_tokens) * 1000.0 / total_ms) : 0.0;
-    return {.text = output,
-            .context_truncated = false,
-            .warning = "",
-            .first_token_ms = total_ms,
-            .total_ms = total_ms,
-            .generated_tokens = approx_tokens,
-            .tokens_per_second = tps};
+    const double tokensPerSecond = totalMs > 0.0 ? (static_cast<double>(approxTokens) * 1000.0 / totalMs) : 0.0;
+    return {.m_text = output,
+            .m_contextTruncated = false,
+            .m_warning = "",
+            .m_firstTokenMs = totalMs,
+            .m_totalMs = totalMs,
+            .m_generatedTokens = approxTokens,
+            .m_tokensPerSecond = tokensPerSecond};
   }
 
  private:
-  std::string command_template_;
+  std::string m_commandTemplate;
 };
 
 }  // namespace
 
-std::unique_ptr<IModelRuntime> make_local_binary_runtime(const std::string& command_template) {
-  return std::make_unique<LocalBinaryRuntime>(command_template);
+std::unique_ptr<IModelRuntime> make_local_binary_runtime(const std::string& commandTemplate) {
+  return std::make_unique<LocalBinaryRuntime>(commandTemplate);
 }
 
 }  // namespace sentra

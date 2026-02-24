@@ -14,33 +14,33 @@ class MockRuntime final : public IModelRuntime {
   bool is_available() const override { return true; }
 
   GenerationResult generate(const GenerationRequest& request, StreamCallback on_token) override {
-    const auto t_start = std::chrono::steady_clock::now();
-    std::string last_user;
-    for (auto it = request.messages.rbegin(); it != request.messages.rend(); ++it) {
-      if (it->role == Role::User) {
-        last_user = it->content;
+    const auto tStart = std::chrono::steady_clock::now();
+    std::string lastUser;
+    for (auto it = request.m_messages.rbegin(); it != request.m_messages.rend(); ++it) {
+      if (it->m_role == Role::User) {
+        lastUser = it->m_content;
         break;
       }
     }
 
     std::ostringstream response;
-    response << "[MOCK] Sentra received: " << last_user
+    response << "[MOCK] Sentra received: " << lastUser
              << " | This is a local-first scaffold. Connect a real runtime via config.";
 
     const std::string text = response.str();
     for (char c : text) {
       on_token(std::string(1, c));
     }
-    const auto t_end = std::chrono::steady_clock::now();
-    const double total_ms =
-        std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(t_end - t_start).count();
-    return {.text = text,
-            .context_truncated = false,
-            .warning = "",
-            .first_token_ms = 0.0,
-            .total_ms = total_ms,
-            .generated_tokens = text.empty() ? static_cast<std::size_t>(0) : static_cast<std::size_t>(1),
-            .tokens_per_second = total_ms > 0.0 ? (1000.0 / total_ms) : 0.0};
+    const auto tEnd = std::chrono::steady_clock::now();
+    const double totalMs =
+        std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(tEnd - tStart).count();
+    return {.m_text = text,
+            .m_contextTruncated = false,
+            .m_warning = "",
+            .m_firstTokenMs = 0.0,
+            .m_totalMs = totalMs,
+            .m_generatedTokens = text.empty() ? static_cast<std::size_t>(0) : static_cast<std::size_t>(1),
+            .m_tokensPerSecond = totalMs > 0.0 ? (1000.0 / totalMs) : 0.0};
   }
 };
 

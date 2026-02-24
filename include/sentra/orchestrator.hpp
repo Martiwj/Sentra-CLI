@@ -16,7 +16,7 @@ namespace sentra {
 
 class Orchestrator {
  public:
-  Orchestrator(AppConfig config, ModelRegistry model_registry, AppState app_state,
+  Orchestrator(AppConfig config, ModelRegistry modelRegistry, AppState appState,
                std::vector<std::unique_ptr<IModelRuntime>> runtimes);
 
   std::string active_runtime_name() const;
@@ -24,9 +24,9 @@ class Orchestrator {
   std::string models_file_path() const;
   std::optional<std::reference_wrapper<const ModelSpec>> active_model() const;
   const std::vector<ModelSpec>& models() const;
-  std::optional<std::reference_wrapper<const ModelSpec>> find_model(const std::string& model_id) const;
+  std::optional<std::reference_wrapper<const ModelSpec>> find_model(const std::string& modelId) const;
   bool add_model(const ModelSpec& model, std::string& error);
-  bool set_active_model(const std::string& model_id, std::string& error);
+  bool set_active_model(const std::string& modelId, std::string& error);
   bool validate_active_model(std::string& report) const;
   std::size_t max_tokens() const;
   std::size_t context_window_tokens() const;
@@ -37,12 +37,12 @@ class Orchestrator {
   GenerationResult respond(const std::vector<Message>& history, StreamCallback on_token);
 
  private:
-  AppConfig config_;
-  ModelRegistry model_registry_;
-  AppState app_state_;
-  std::vector<std::unique_ptr<IModelRuntime>> runtimes_;
-  std::string runtime_selection_note_;
-  std::optional<std::size_t> active_runtime_index_;
+  AppConfig m_config;
+  ModelRegistry m_modelRegistry;
+  AppState m_appState;
+  std::vector<std::unique_ptr<IModelRuntime>> m_runtimes;
+  std::string m_runtimeSelectionNote;
+  std::optional<std::size_t> m_activeRuntimeIndex;
 
   std::optional<std::size_t> pick_runtime_index(std::string& note) const;
 };

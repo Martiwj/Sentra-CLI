@@ -9,111 +9,111 @@
 
 namespace sentra {
 
-Orchestrator::Orchestrator(AppConfig config, ModelRegistry model_registry, AppState app_state,
+Orchestrator::Orchestrator(AppConfig config, ModelRegistry modelRegistry, AppState appState,
                            std::vector<std::unique_ptr<IModelRuntime>> runtimes)
-    : config_(std::move(config)),
-      model_registry_(std::move(model_registry)),
-      app_state_(std::move(app_state)),
-      runtimes_(std::move(runtimes)),
-      active_runtime_index_(pick_runtime_index(runtime_selection_note_)) {}
+    : m_config(std::move(config)),
+      m_modelRegistry(std::move(modelRegistry)),
+      m_appState(std::move(appState)),
+      m_runtimes(std::move(runtimes)),
+      m_activeRuntimeIndex(pick_runtime_index(m_runtimeSelectionNote)) {}
 
 std::string Orchestrator::active_runtime_name() const {
-  if (!active_runtime_index_.has_value() || *active_runtime_index_ >= runtimes_.size()) {
+  if (!m_activeRuntimeIndex.has_value() || *m_activeRuntimeIndex >= m_runtimes.size()) {
     return "none";
   }
-  return runtimes_[*active_runtime_index_]->name();
+  return m_runtimes[*m_activeRuntimeIndex]->name();
 }
 
-std::string Orchestrator::runtime_selection_note() const { return runtime_selection_note_; }
+std::string Orchestrator::runtime_selection_note() const { return m_runtimeSelectionNote; }
 
-std::string Orchestrator::models_file_path() const { return config_.models_file; }
+std::string Orchestrator::models_file_path() const { return m_config.m_modelsFile; }
 
 std::optional<std::reference_wrapper<const ModelSpec>> Orchestrator::active_model() const {
-  return model_registry_.active_model();
+  return m_modelRegistry.active_model();
 }
 
-const std::vector<ModelSpec>& Orchestrator::models() const { return model_registry_.models(); }
+const std::vector<ModelSpec>& Orchestrator::models() const { return m_modelRegistry.models(); }
 
 std::optional<std::reference_wrapper<const ModelSpec>> Orchestrator::find_model(
-    const std::string& model_id) const {
-  return model_registry_.find_model(model_id);
+    const std::string& modelId) const {
+  return m_modelRegistry.find_model(modelId);
 }
 
 bool Orchestrator::add_model(const ModelSpec& model, std::string& error) {
-  if (model.id.empty() || model.hf_repo.empty() || model.hf_file.empty() || model.local_path.empty()) {
+  if (model.m_id.empty() || model.m_hfRepo.empty() || model.m_hfFile.empty() || model.m_localPath.empty()) {
     error = "model requires non-empty id, hf_repo, hf_file, and local_path";
     return false;
   }
-  if (model_registry_.find_model(model.id).has_value()) {
-    error = "model id already exists: " + model.id;
+  if (m_modelRegistry.find_model(model.m_id).has_value()) {
+    error = "model id already exists: " + model.m_id;
     return false;
   }
 
-  std::ofstream out(config_.models_file, std::ios::app);
+  std::ofstream out(m_config.m_modelsFile, std::ios::app);
   if (!out.is_open()) {
-    error = "failed to append models file: " + config_.models_file;
+    error = "failed to append models file: " + m_config.m_modelsFile;
     return false;
   }
-  const std::string display_name = model.name.empty() ? model.id : model.name;
-  out << model.id << '\t' << display_name << '\t' << model.hf_repo << '\t' << model.hf_file << '\t'
-      << model.local_path << '\n';
+  const std::string displayName = model.m_name.empty() ? model.m_id : model.m_name;
+  out << model.m_id << '\t' << displayName << '\t' << model.m_hfRepo << '\t' << model.m_hfFile << '\t'
+      << model.m_localPath << '\n';
   if (!out.good()) {
-    error = "failed writing model entry to: " + config_.models_file;
+    error = "failed writing model entry to: " + m_config.m_modelsFile;
     return false;
   }
 
   ModelSpec copy = model;
-  copy.name = display_name;
-  if (!model_registry_.add_model(std::move(copy), error)) {
+  copy.m_name = displayName;
+  if (!m_modelRegistry.add_model(std::move(copy), error)) {
     return false;
   }
   error.clear();
   return true;
 }
 
-bool Orchestrator::set_active_model(const std::string& model_id, std::string& error) {
-  const bool ok = model_registry_.set_active_model(model_id, error);
+bool Orchestrator::set_active_model(const std::string& modelId, std::string& error) {
+  const bool ok = m_modelRegistry.set_active_model(modelId, error);
   if (ok) {
-    app_state_.save_active_model_id(model_id);
+    m_appState.save_active_model_id(modelId);
   }
   return ok;
 }
 
 bool Orchestrator::validate_active_model(std::string& report) const {
-  const auto model = model_registry_.active_model();
+  const auto model = m_modelRegistry.active_model();
   if (!model.has_value()) {
     report = "no active model configured";
     return false;
   }
   const ModelSpec& active = model->get();
-  if (active.id.empty() || active.hf_repo.empty() || active.hf_file.empty() || active.local_path.empty()) {
-    report = "active model metadata is incomplete for id: " + active.id;
+  if (active.m_id.empty() || active.m_hfRepo.empty() || active.m_hfFile.empty() || active.m_localPath.empty()) {
+    report = "active model metadata is incomplete for id: " + active.m_id;
     return false;
   }
-  if (!std::filesystem::exists(active.local_path)) {
-    report = "model file not found at " + active.local_path + " (run /model download " + active.id + ")";
+  if (!std::filesystem::exists(active.m_localPath)) {
+    report = "model file not found at " + active.m_localPath + " (run /model download " + active.m_id + ")";
     return false;
   }
-  std::ifstream in(active.local_path);
+  std::ifstream in(active.m_localPath);
   if (!in.good()) {
-    report = "model file exists but is not readable: " + active.local_path;
+    report = "model file exists but is not readable: " + active.m_localPath;
     return false;
   }
-  report = "model valid: " + active.id + " @ " + active.local_path;
+  report = "model valid: " + active.m_id + " @ " + active.m_localPath;
   return true;
 }
 
-std::size_t Orchestrator::max_tokens() const { return config_.max_tokens; }
+std::size_t Orchestrator::max_tokens() const { return m_config.m_maxTokens; }
 
-std::size_t Orchestrator::context_window_tokens() const { return config_.context_window_tokens; }
+std::size_t Orchestrator::context_window_tokens() const { return m_config.m_contextWindowTokens; }
 
-void Orchestrator::set_max_tokens(std::size_t value) { config_.max_tokens = std::max<std::size_t>(1, value); }
+void Orchestrator::set_max_tokens(std::size_t value) { m_config.m_maxTokens = std::max<std::size_t>(1, value); }
 
 void Orchestrator::set_context_window_tokens(std::size_t value) {
-  config_.context_window_tokens = std::max<std::size_t>(64, value);
+  m_config.m_contextWindowTokens = std::max<std::size_t>(64, value);
 }
 
-std::string Orchestrator::profile() const { return config_.profile; }
+std::string Orchestrator::profile() const { return m_config.m_profile; }
 
 bool Orchestrator::set_profile(const std::string& profile, std::string& error) {
   const std::string normalized = [&]() {
@@ -128,23 +128,23 @@ bool Orchestrator::set_profile(const std::string& profile, std::string& error) {
   }();
 
   if (normalized == "fast") {
-    config_.profile = normalized;
-    config_.max_tokens = 128;
-    config_.context_window_tokens = 1024;
+    m_config.m_profile = normalized;
+    m_config.m_maxTokens = 128;
+    m_config.m_contextWindowTokens = 1024;
     error.clear();
     return true;
   }
   if (normalized == "balanced") {
-    config_.profile = normalized;
-    config_.max_tokens = 256;
-    config_.context_window_tokens = 2048;
+    m_config.m_profile = normalized;
+    m_config.m_maxTokens = 256;
+    m_config.m_contextWindowTokens = 2048;
     error.clear();
     return true;
   }
   if (normalized == "quality") {
-    config_.profile = normalized;
-    config_.max_tokens = 512;
-    config_.context_window_tokens = 4096;
+    m_config.m_profile = normalized;
+    m_config.m_maxTokens = 512;
+    m_config.m_contextWindowTokens = 4096;
     error.clear();
     return true;
   }
@@ -154,58 +154,58 @@ bool Orchestrator::set_profile(const std::string& profile, std::string& error) {
 }
 
 GenerationResult Orchestrator::respond(const std::vector<Message>& history, StreamCallback on_token) {
-  if (!active_runtime_index_.has_value() || *active_runtime_index_ >= runtimes_.size()) {
+  if (!m_activeRuntimeIndex.has_value() || *m_activeRuntimeIndex >= m_runtimes.size()) {
     throw std::runtime_error("no available runtime");
   }
 
-  const auto model = model_registry_.active_model();
+  const auto model = m_modelRegistry.active_model();
   if (!model.has_value()) {
     throw std::runtime_error("no active model configured");
   }
   const ModelSpec& active = model->get();
-  if (!std::filesystem::exists(active.local_path)) {
-    throw std::runtime_error("active model path is missing: " + active.local_path +
-                             " (run /model validate or /model download " + active.id + ")");
+  if (!std::filesystem::exists(active.m_localPath)) {
+    throw std::runtime_error("active model path is missing: " + active.m_localPath +
+                             " (run /model validate or /model download " + active.m_id + ")");
   }
-  std::ifstream in(active.local_path);
+  std::ifstream in(active.m_localPath);
   if (!in.good()) {
-    throw std::runtime_error("active model path is not readable: " + active.local_path);
+    throw std::runtime_error("active model path is not readable: " + active.m_localPath);
   }
 
   GenerationRequest req;
-  const std::size_t prompt_budget =
-      config_.context_window_tokens > config_.max_tokens ? config_.context_window_tokens - config_.max_tokens : 0;
-  const ContextPruneResult pruned = prune_context_window(history, prompt_budget);
-  req.messages = pruned.messages;
-  req.model_id = active.id;
-  req.model_path = active.local_path;
-  req.max_tokens = config_.max_tokens;
+  const std::size_t promptBudget =
+      m_config.m_contextWindowTokens > m_config.m_maxTokens ? m_config.m_contextWindowTokens - m_config.m_maxTokens : 0;
+  const ContextPruneResult pruned = prune_context_window(history, promptBudget);
+  req.m_messages = pruned.m_messages;
+  req.m_modelId = active.m_id;
+  req.m_modelPath = active.m_localPath;
+  req.m_maxTokens = m_config.m_maxTokens;
 
-  GenerationResult result = runtimes_[*active_runtime_index_]->generate(req, std::move(on_token));
-  if (pruned.truncated) {
-    result.context_truncated = true;
-    result.warning = "context truncated to fit token budget (kept approx " +
-                     std::to_string(pruned.tokens_kept) + " tokens)";
+  GenerationResult result = m_runtimes[*m_activeRuntimeIndex]->generate(req, std::move(on_token));
+  if (pruned.m_truncated) {
+    result.m_contextTruncated = true;
+    result.m_warning = "context truncated to fit token budget (kept approx " +
+                      std::to_string(pruned.m_tokensKept) + " tokens)";
   }
   return result;
 }
 
 std::optional<std::size_t> Orchestrator::pick_runtime_index(std::string& note) const {
-  if (runtimes_.empty()) {
+  if (m_runtimes.empty()) {
     note = "no runtimes configured";
     return std::nullopt;
   }
 
-  for (std::size_t i = 0; i < runtimes_.size(); ++i) {
-    if (runtimes_[i]->name() == config_.runtime_preference && runtimes_[i]->is_available()) {
+  for (std::size_t i = 0; i < m_runtimes.size(); ++i) {
+    if (m_runtimes[i]->name() == m_config.m_runtimePreference && m_runtimes[i]->is_available()) {
       note.clear();
       return i;
     }
   }
 
-  for (std::size_t i = 0; i < runtimes_.size(); ++i) {
-    if (runtimes_[i]->is_available()) {
-      note = "runtime '" + config_.runtime_preference + "' unavailable; using '" + runtimes_[i]->name() + "'";
+  for (std::size_t i = 0; i < m_runtimes.size(); ++i) {
+    if (m_runtimes[i]->is_available()) {
+      note = "runtime '" + m_config.m_runtimePreference + "' unavailable; using '" + m_runtimes[i]->name() + "'";
       return i;
     }
   }

@@ -15,40 +15,40 @@ std::string role_to_string(Role role);
 Role role_from_string(const std::string& value);
 
 struct Message {
-  Role role;
-  std::string content;
+  Role m_role;
+  std::string m_content;
 };
 
 struct GenerationRequest {
-  std::vector<Message> messages;
-  std::string model_id;
-  std::string model_path;
-  std::size_t max_tokens{256};
+  std::vector<Message> m_messages;
+  std::string m_modelId;
+  std::string m_modelPath;
+  std::size_t m_maxTokens{256};
 };
 
 struct GenerationResult {
-  std::string text;
-  bool context_truncated{false};
-  std::string warning;
-  double first_token_ms{0.0};
-  double total_ms{0.0};
-  std::size_t generated_tokens{0};
-  double tokens_per_second{0.0};
+  std::string m_text;
+  bool m_contextTruncated{false};
+  std::string m_warning;
+  double m_firstTokenMs{0.0};
+  double m_totalMs{0.0};
+  std::size_t m_generatedTokens{0};
+  double m_tokensPerSecond{0.0};
 };
 
 struct ModelSpec {
-  std::string id;
-  std::string name;
-  std::string hf_repo;
-  std::string hf_file;
-  std::string local_path;
+  std::string m_id;
+  std::string m_name;
+  std::string m_hfRepo;
+  std::string m_hfFile;
+  std::string m_localPath;
 };
 
 struct SessionMetadata {
-  std::string session_id;
-  long long created_at_epoch{0};
-  std::string active_model_id;
-  std::string runtime_name;
+  std::string m_sessionId;
+  long long m_createdAtEpoch{0};
+  std::string m_activeModelId;
+  std::string m_runtimeName;
 };
 
 }  // namespace sentra

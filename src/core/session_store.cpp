@@ -32,8 +32,8 @@ Role role_from_string(const std::string& value) {
   return Role::User;
 }
 
-SessionStore::SessionStore(std::string base_dir) : base_dir_(std::move(base_dir)) {
-  std::filesystem::create_directories(base_dir_);
+SessionStore::SessionStore(std::string baseDir) : m_baseDir(std::move(baseDir)) {
+  std::filesystem::create_directories(m_baseDir);
 }
 
 std::string SessionStore::create_session_id() const {
@@ -42,9 +42,9 @@ std::string SessionStore::create_session_id() const {
   return "session-" + std::to_string(t);
 }
 
-std::vector<Message> SessionStore::load(const std::string& session_id) const {
+std::vector<Message> SessionStore::load(const std::string& sessionId) const {
   std::vector<Message> messages;
-  std::ifstream in(path_for(session_id));
+  std::ifstream in(path_for(sessionId));
   if (!in.is_open()) {
     return messages;
   }
@@ -71,58 +71,58 @@ std::vector<Message> SessionStore::load(const std::string& session_id) const {
   return messages;
 }
 
-void SessionStore::append(const std::string& session_id, const Message& message) const {
-  std::ofstream out(path_for(session_id), std::ios::app);
+void SessionStore::append(const std::string& sessionId, const Message& message) const {
+  std::ofstream out(path_for(sessionId), std::ios::app);
   if (!out.is_open()) {
     throw std::runtime_error("failed to open session file for append");
   }
-  out << "v1\tmsg\t" << role_to_string(message.role) << '\t' << escape(message.content) << '\n';
+  out << "v1\tmsg\t" << role_to_string(message.m_role) << '\t' << escape(message.m_content) << '\n';
 }
 
-void SessionStore::ensure_session(const std::string& session_id, const std::string& active_model_id,
-                                  const std::string& runtime_name) const {
-  const std::string log_path = path_for(session_id);
-  if (!std::filesystem::exists(log_path)) {
-    std::ofstream out(log_path, std::ios::app);
+void SessionStore::ensure_session(const std::string& sessionId, const std::string& activeModelId,
+                                  const std::string& runtimeName) const {
+  const std::string logPath = path_for(sessionId);
+  if (!std::filesystem::exists(logPath)) {
+    std::ofstream out(logPath, std::ios::app);
     if (!out.is_open()) {
-      throw std::runtime_error("failed to create session log: " + log_path);
+      throw std::runtime_error("failed to create session log: " + logPath);
     }
   }
 
-  if (!std::filesystem::exists(metadata_path_for(session_id))) {
-    update_metadata(session_id, active_model_id, runtime_name);
+  if (!std::filesystem::exists(metadata_path_for(sessionId))) {
+    update_metadata(sessionId, activeModelId, runtimeName);
   }
 }
 
-void SessionStore::update_metadata(const std::string& session_id, const std::string& active_model_id,
-                                   const std::string& runtime_name) const {
+void SessionStore::update_metadata(const std::string& sessionId, const std::string& activeModelId,
+                                   const std::string& runtimeName) const {
   long long created = 0;
-  if (const std::optional<SessionMetadata> existing = load_metadata(session_id); existing.has_value()) {
-    created = existing->created_at_epoch;
+  if (const std::optional<SessionMetadata> existing = load_metadata(sessionId); existing.has_value()) {
+    created = existing->m_createdAtEpoch;
   }
   if (created == 0) {
     const auto now = std::chrono::system_clock::now();
     created = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count();
   }
 
-  std::ofstream out(metadata_path_for(session_id), std::ios::trunc);
+  std::ofstream out(metadata_path_for(sessionId), std::ios::trunc);
   if (!out.is_open()) {
     throw std::runtime_error("failed to open session metadata for write");
   }
-  out << "session_id=" << session_id << "\n";
+  out << "session_id=" << sessionId << "\n";
   out << "created_at_epoch=" << created << "\n";
-  out << "active_model_id=" << active_model_id << "\n";
-  out << "runtime_name=" << runtime_name << "\n";
+  out << "active_model_id=" << activeModelId << "\n";
+  out << "runtime_name=" << runtimeName << "\n";
 }
 
-std::optional<SessionMetadata> SessionStore::load_metadata(const std::string& session_id) const {
-  std::ifstream in(metadata_path_for(session_id));
+std::optional<SessionMetadata> SessionStore::load_metadata(const std::string& sessionId) const {
+  std::ifstream in(metadata_path_for(sessionId));
   if (!in.is_open()) {
     return std::nullopt;
   }
 
   SessionMetadata metadata;
-  metadata.session_id = session_id;
+  metadata.m_sessionId = sessionId;
 
   std::string line;
   while (std::getline(in, line)) {
@@ -133,13 +133,13 @@ std::optional<SessionMetadata> SessionStore::load_metadata(const std::string& se
     const std::string key = line.substr(0, eq);
     const std::string value = line.substr(eq + 1);
     if (key == "session_id") {
-      metadata.session_id = value;
+      metadata.m_sessionId = value;
     } else if (key == "created_at_epoch") {
-      metadata.created_at_epoch = std::stoll(value);
+      metadata.m_createdAtEpoch = std::stoll(value);
     } else if (key == "active_model_id") {
-      metadata.active_model_id = value;
+      metadata.m_activeModelId = value;
     } else if (key == "runtime_name") {
-      metadata.runtime_name = value;
+      metadata.m_runtimeName = value;
     }
   }
 
@@ -148,7 +148,7 @@ std::optional<SessionMetadata> SessionStore::load_metadata(const std::string& se
 
 std::vector<SessionMetadata> SessionStore::list_sessions() const {
   std::vector<SessionMetadata> out;
-  for (const auto& entry : std::filesystem::directory_iterator(base_dir_)) {
+  for (const auto& entry : std::filesystem::directory_iterator(m_baseDir)) {
     if (!entry.is_regular_file()) {
       continue;
     }
@@ -158,31 +158,31 @@ std::vector<SessionMetadata> SessionStore::list_sessions() const {
     }
 
     SessionMetadata metadata;
-    metadata.session_id = path.stem().string();
-    if (const std::optional<SessionMetadata> loaded = load_metadata(metadata.session_id); loaded.has_value()) {
+    metadata.m_sessionId = path.stem().string();
+    if (const std::optional<SessionMetadata> loaded = load_metadata(metadata.m_sessionId); loaded.has_value()) {
       metadata = *loaded;
     } else {
       const auto now = std::chrono::system_clock::now();
-      metadata.created_at_epoch = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count();
+      metadata.m_createdAtEpoch = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count();
     }
     out.push_back(std::move(metadata));
   }
 
   std::sort(out.begin(), out.end(), [](const SessionMetadata& a, const SessionMetadata& b) {
-    if (a.created_at_epoch != b.created_at_epoch) {
-      return a.created_at_epoch > b.created_at_epoch;
+    if (a.m_createdAtEpoch != b.m_createdAtEpoch) {
+      return a.m_createdAtEpoch > b.m_createdAtEpoch;
     }
-    return a.session_id < b.session_id;
+    return a.m_sessionId < b.m_sessionId;
   });
   return out;
 }
 
-std::string SessionStore::path_for(const std::string& session_id) const {
-  return base_dir_ + "/" + session_id + ".log";
+std::string SessionStore::path_for(const std::string& sessionId) const {
+  return m_baseDir + "/" + sessionId + ".log";
 }
 
-std::string SessionStore::metadata_path_for(const std::string& session_id) const {
-  return base_dir_ + "/" + session_id + ".meta";
+std::string SessionStore::metadata_path_for(const std::string& sessionId) const {
+  return m_baseDir + "/" + sessionId + ".meta";
 }
 
 std::string SessionStore::escape(const std::string& input) {

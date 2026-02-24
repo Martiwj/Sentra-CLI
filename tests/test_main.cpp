@@ -37,11 +37,11 @@ void test_model_registry_parsing_and_switching() {
 
   sentra::ModelRegistry registry = sentra::ModelRegistry::load_from_tsv(path, "b");
   assert_true(registry.active_model().has_value(), "active model should exist");
-  assert_true(registry.active_model()->get().id == "b", "preferred model id should be selected");
+  assert_true(registry.active_model()->get().m_id == "b", "preferred model id should be selected");
 
   std::string error;
   assert_true(registry.set_active_model("a", error), "switch to model a should succeed");
-  assert_true(registry.active_model()->get().id == "a", "active model should be a after switch");
+  assert_true(registry.active_model()->get().m_id == "a", "active model should be a after switch");
   assert_true(registry.add_model({"c", "Model C", "repo/c", "file-c.gguf", "./models/c.gguf"}, error),
               "adding model c should succeed");
   assert_true(registry.find_model("c").has_value(), "added model c should be findable");
@@ -56,23 +56,23 @@ void test_model_registry_parsing_and_switching() {
 void test_session_store_encoding_and_metadata() {
   const std::string dir = make_temp_dir("sentra-session-");
   sentra::SessionStore store(dir);
-  const std::string session_id = "session-test";
+  const std::string sessionId = "session-test";
 
-  store.ensure_session(session_id, "model-x", "mock");
-  store.append(session_id, {sentra::Role::System, "sys\tline\nnext"});
-  store.append(session_id, {sentra::Role::User, "hello"});
-  store.update_metadata(session_id, "model-y", "local-binary");
+  store.ensure_session(sessionId, "model-x", "mock");
+  store.append(sessionId, {sentra::Role::System, "sys\tline\nnext"});
+  store.append(sessionId, {sentra::Role::User, "hello"});
+  store.update_metadata(sessionId, "model-y", "local-binary");
 
-  const std::vector<sentra::Message> loaded = store.load(session_id);
+  const std::vector<sentra::Message> loaded = store.load(sessionId);
   assert_true(loaded.size() == 2, "two messages should load");
-  assert_true(loaded[0].role == sentra::Role::System, "first role should be system");
-  assert_true(loaded[0].content == "sys\tline\nnext", "escaped content should round-trip");
-  assert_true(loaded[1].content == "hello", "user content should round-trip");
+  assert_true(loaded[0].m_role == sentra::Role::System, "first role should be system");
+  assert_true(loaded[0].m_content == "sys\tline\nnext", "escaped content should round-trip");
+  assert_true(loaded[1].m_content == "hello", "user content should round-trip");
 
-  const auto metadata = store.load_metadata(session_id);
+  const auto metadata = store.load_metadata(sessionId);
   assert_true(metadata.has_value(), "metadata should exist");
-  assert_true(metadata->active_model_id == "model-y", "metadata should keep latest model id");
-  assert_true(metadata->runtime_name == "local-binary", "metadata should keep runtime");
+  assert_true(metadata->m_activeModelId == "model-y", "metadata should keep latest model id");
+  assert_true(metadata->m_runtimeName == "local-binary", "metadata should keep runtime");
 
   const auto listed = store.list_sessions();
   assert_true(!listed.empty(), "session list should not be empty");
@@ -91,10 +91,10 @@ void test_context_pruning() {
   };
 
   const sentra::ContextPruneResult pruned = sentra::prune_context_window(history, 12);
-  assert_true(!pruned.messages.empty(), "pruned history should not be empty");
-  assert_true(pruned.messages.front().role == sentra::Role::System, "system message should remain pinned");
-  assert_true(pruned.messages.back().content == "latest user query", "latest context should be preserved");
-  assert_true(pruned.truncated, "history should be marked truncated when budget is tight");
+  assert_true(!pruned.m_messages.empty(), "pruned history should not be empty");
+  assert_true(pruned.m_messages.front().m_role == sentra::Role::System, "system message should remain pinned");
+  assert_true(pruned.m_messages.back().m_content == "latest user query", "latest context should be preserved");
+  assert_true(pruned.m_truncated, "history should be marked truncated when budget is tight");
 }
 
 }  // namespace
