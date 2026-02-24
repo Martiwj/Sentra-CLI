@@ -155,3 +155,9 @@ Session logs are append-only in `.sentra/sessions/<session-id>.log` using a stru
 - `src/cli/`: REPL loop and command handling
 - `scripts/`: operational helpers (downloads)
 - `docs/`: architecture and operations notes
+
+## Roadmap
+- [ ] Future features are put here...
+
+## Contribution Guide
+To contribute to the project, you can look at any of the issues, or take on one of the roadmap features. Feel free to reach out to any of the contributors for questions.
