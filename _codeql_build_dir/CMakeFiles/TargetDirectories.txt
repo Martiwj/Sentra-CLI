@@ -1,0 +1,5 @@
+/home/runner/work/Sentra-CLI/Sentra-CLI/_codeql_build_dir/CMakeFiles/sentra.dir
+/home/runner/work/Sentra-CLI/Sentra-CLI/_codeql_build_dir/CMakeFiles/sentra_lib.dir
+/home/runner/work/Sentra-CLI/Sentra-CLI/_codeql_build_dir/CMakeFiles/sentra_tests.dir
+/home/runner/work/Sentra-CLI/Sentra-CLI/_codeql_build_dir/CMakeFiles/edit_cache.dir
+/home/runner/work/Sentra-CLI/Sentra-CLI/_codeql_build_dir/CMakeFiles/rebuild_cache.dir
